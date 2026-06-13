@@ -6,6 +6,7 @@ import { TimingAnalyzer } from "./timing.js";
 import { Metronome } from "./metronome.js";
 import { PatternSequencer } from "./sequencer.js";
 import { ProfileStore } from "./profiles-store.js";
+import { DrumSynth } from "./drum-synth.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -16,6 +17,7 @@ const timing = new TimingAnalyzer();
 const metro = new Metronome();
 const seq = new PatternSequencer();
 const kits = new ProfileStore();
+const synth = new DrumSynth();
 
 // --- UI state --------------------------------------------------------------
 const state = {
@@ -177,7 +179,24 @@ function buildSequencer() {
 
     const label = document.createElement("div");
     label.className = "seq-label";
-    label.textContent = VOICE_LABEL[voice];
+    const play = document.createElement("button");
+    play.className = "seq-play";
+    play.title = `Play ${VOICE_LABEL[voice]} sample`;
+    play.setAttribute("aria-label", `Play ${VOICE_LABEL[voice]} sample`);
+    play.innerHTML =
+      `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">` +
+      `<path fill="currentColor" d="M2.5 6h2.2L8 3.3v9.4L4.7 10H2.5z"/>` +
+      `<path fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" ` +
+      `d="M10.5 5.6a3.2 3.2 0 0 1 0 4.8"/></svg>`;
+    play.addEventListener("click", () => {
+      synth.play(voice);
+      play.classList.add("playing");
+      setTimeout(() => play.classList.remove("playing"), 160);
+    });
+    const name = document.createElement("span");
+    name.className = "seq-name";
+    name.textContent = VOICE_LABEL[voice];
+    label.append(play, name);
     row.appendChild(label);
 
     const cells = document.createElement("div");
