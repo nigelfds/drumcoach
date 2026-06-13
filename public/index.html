@@ -111,55 +111,80 @@
       <div class="panel-head">
         <h2>Calibrate &amp; tune</h2>
       </div>
-      <p class="hint">
-        Recognition uses default profiles. To adapt to your kit:
-        <strong>1.</strong> pick a drum below,
-        <strong>2.</strong> press <em>Start calibration</em>,
-        <strong>3.</strong> hit that drum a few times,
-        <strong>4.</strong> press <em>Stop calibration</em>.
-      </p>
 
-      <div class="cal-step">Kit profile</div>
-      <div class="row kit-row">
-        <select id="kit-select" title="Switch between saved kit profiles"></select>
-        <input id="kit-name" type="text" placeholder="Name this kit…" maxlength="40" />
-        <button id="kit-save" class="btn btn-small">Save</button>
-        <button id="kit-delete" class="btn btn-small" disabled>Delete</button>
-        <button id="forget-cal" class="btn btn-small">Forget calibration</button>
-      </div>
-      <div id="kit-status" class="hint">Using default (uncalibrated) profiles.</div>
-
-      <div class="cal-step">1 · Pick a drum</div>
-      <div class="cal-grid" id="cal-grid"></div>
-
-      <div class="cal-step">2 · Record</div>
-      <div class="row cal-actions">
-        <button id="cal-toggle" class="btn cal-start" disabled>● Start calibration</button>
-        <span id="cal-status" class="hint">Pick a drum above to begin.</span>
-      </div>
-
-      <div id="cal-banner" class="cal-banner" hidden>
-        <span class="rec-dot"></span>
-        <span id="cal-banner-text">Recording…</span>
-        <span id="cal-count" class="cal-count">0 hits</span>
-      </div>
-
-      <div class="cal-step">Detection sensitivity</div>
-      <div class="row">
-        <label class="sens">Quieter hits ◀
-          <input id="sens-range" type="range" min="0.4" max="2.5" step="0.05" value="1" class="slider" />
-          ▶ Fewer false hits
-        </label>
-      </div>
-
-      <div class="cal-step">Voice rejection</div>
-      <div class="row voice-row">
-        <div class="seg" id="voice-mode" role="group" aria-label="Voice rejection mode">
-          <button data-mode="off" class="seg-btn">Off</button>
-          <button data-mode="moderate" class="seg-btn">Moderate</button>
-          <button data-mode="aggressive" class="seg-btn active">Aggressive</button>
+      <!-- A · Saved kit profiles (load / save) ----------------------- -->
+      <div class="subpanel">
+        <div class="subpanel-head">
+          <span class="subpanel-title">Kit profile</span>
+          <span class="subpanel-sub">Save a calibration per kit / room and switch between them</span>
         </div>
-        <span id="voice-hint" class="hint"></span>
+        <div class="row kit-row">
+          <label class="kit-field">Profile
+            <select id="kit-select" title="Switch between saved kit profiles"></select>
+          </label>
+          <label class="kit-field grow">Name
+            <input id="kit-name" type="text" placeholder="e.g. Garage acoustic…" maxlength="40" />
+          </label>
+          <div class="kit-actions">
+            <button id="kit-save" class="btn btn-small btn-accent">Save</button>
+            <button id="kit-delete" class="btn btn-small" disabled>Delete</button>
+            <button id="forget-cal" class="btn btn-small btn-ghost">Forget calibration</button>
+          </div>
+        </div>
+        <div id="kit-status" class="hint">Using default (uncalibrated) profiles.</div>
+      </div>
+
+      <!-- B · Calibration capture ------------------------------------ -->
+      <div class="subpanel">
+        <div class="subpanel-head">
+          <span class="subpanel-title">Calibrate to your kit</span>
+          <span class="subpanel-sub">Teach the app what each drum sounds like</span>
+        </div>
+
+        <div class="cal-stepblock">
+          <div class="cal-step">1 · Pick a drum</div>
+          <div class="cal-grid" id="cal-grid"></div>
+        </div>
+
+        <div class="cal-stepblock">
+          <div class="cal-step">2 · Record</div>
+          <div class="row cal-actions">
+            <button id="cal-toggle" class="btn cal-start" disabled>● Start calibration</button>
+            <span id="cal-status" class="hint">Pick a drum above to begin.</span>
+          </div>
+        </div>
+
+        <div id="cal-banner" class="cal-banner" hidden>
+          <span class="rec-dot"></span>
+          <span id="cal-banner-text">Recording…</span>
+          <span id="cal-count" class="cal-count">0 hits</span>
+        </div>
+      </div>
+
+      <!-- C · Detection tuning --------------------------------------- -->
+      <div class="subpanel">
+        <div class="subpanel-head">
+          <span class="subpanel-title">Detection tuning</span>
+          <span class="subpanel-sub">Fine-tune how hits are picked up</span>
+        </div>
+
+        <div class="cal-step">Sensitivity</div>
+        <div class="row">
+          <label class="sens">Quieter hits ◀
+            <input id="sens-range" type="range" min="0.4" max="2.5" step="0.05" value="1" class="slider" />
+            ▶ Fewer false hits
+          </label>
+        </div>
+
+        <div class="cal-step">Voice rejection</div>
+        <div class="row voice-row">
+          <div class="seg" id="voice-mode" role="group" aria-label="Voice rejection mode">
+            <button data-mode="off" class="seg-btn">Off</button>
+            <button data-mode="moderate" class="seg-btn">Moderate</button>
+            <button data-mode="aggressive" class="seg-btn active">Aggressive</button>
+          </div>
+          <span id="voice-hint" class="hint"></span>
+        </div>
       </div>
     </section>
   </main>
