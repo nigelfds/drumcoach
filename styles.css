@@ -216,15 +216,44 @@ input[type="number"] { width: 64px; text-align: center; }
 .cal-count { margin-left: auto; color: var(--accent-2); font-variant-numeric: tabular-nums; }
 .sens { flex: 1; gap: 10px; }
 
-/* Kit profile row. */
-.kit-row { gap: 8px; }
-.kit-row #kit-select { min-width: 150px; }
-.kit-row #kit-name {
-  flex: 1; min-width: 120px; max-width: 220px;
+/* Sub-sections inside the Calibrate & tune panel. Each is a darker inset card
+   so the three concerns (save/load, calibrate, tune) read as separate groups. */
+.subpanel {
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 16px 16px;
+  margin-top: 12px;
+}
+.subpanel:first-of-type { margin-top: 6px; }
+.subpanel-head {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding-bottom: 10px; margin-bottom: 4px; border-bottom: 1px solid var(--line);
+}
+.subpanel-title { font-size: 0.82rem; font-weight: 650; color: var(--text); letter-spacing: 0.02em; }
+.subpanel-sub { font-size: 0.78rem; color: var(--muted); }
+.subpanel .cal-step { margin-top: 12px; }
+.cal-stepblock + .cal-stepblock { margin-top: 6px; }
+
+/* Kit profile row: labelled Profile / Name fields + action buttons. */
+.kit-row { gap: 14px; align-items: flex-end; }
+.kit-field {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted);
+}
+.kit-field.grow { flex: 1; min-width: 160px; }
+.kit-field select { min-width: 160px; }
+.kit-field input {
+  width: 100%;
   background: var(--panel-2); color: var(--text);
   border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; font-size: 0.9rem;
 }
-.kit-row #kit-name::placeholder { color: var(--muted); }
+.kit-field input::placeholder { color: var(--muted); text-transform: none; letter-spacing: 0; }
+.kit-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.btn.btn-accent { background: var(--good); border-color: var(--good); color: #06160c; font-weight: 600; }
+.btn.btn-accent:hover { background: #5bdd92; }
+.btn.btn-ghost { color: var(--muted); }
+.btn.btn-ghost:hover { color: var(--text); border-color: var(--miss); }
 
 /* Voice-rejection segmented control. */
 .voice-row { gap: 14px; }
