@@ -66,24 +66,27 @@ Live URL: **<https://drumcoach.nig.fm>** (custom domain → GitHub Pages)
    ```
 3. **Seed the branch** (first deploy):
    ```bash
-   git subtree push --prefix public origin gh-pages
+   git push --force origin "$(git subtree split --prefix public main):refs/heads/gh-pages"
    ```
 
 ### Deploying
 
-Just push `main` — the tracked `pre-push` hook (`.githooks/pre-push`) runs the
-subtree deploy for you:
+Just push `main` — the tracked `pre-push` hook (`.githooks/pre-push`) deploys for
+you:
 
 ```bash
 git push origin main      # → also updates origin/gh-pages from public/
 ```
 
-The hook only fires for `main`/`master` pushed to `origin`, doesn't recurse on
-the inner `gh-pages` push, and if the deploy fails it just warns (your `main`
-push still goes through). To deploy manually at any time:
+The hook splits the `public/` subtree and **force-pushes** it to `gh-pages`
+(a generated branch, so force is intentional — it avoids "non-fast-forward"
+rejections when `gh-pages` diverges, e.g. GitHub adding a `CNAME` commit). It
+only fires for `main`/`master` pushed to `origin`, doesn't recurse on the inner
+`gh-pages` push, and if the deploy fails it just warns (your `main` push still
+goes through). To deploy manually at any time:
 
 ```bash
-git subtree push --prefix public origin gh-pages
+git push --force origin "$(git subtree split --prefix public main):refs/heads/gh-pages"
 ```
 
 ### Notes

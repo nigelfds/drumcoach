@@ -2,15 +2,16 @@
 #
 # pre-push hook — keep GitHub Pages in sync with the public/ subtree.
 #
-# When you push `main` (or `master`) to origin, this runs the same deploy you'd
-# run by hand:
-#     git subtree push --prefix public origin gh-pages
+# When you push `main` (or `master`) to origin, this splits the public/ subtree
+# and FORCE-pushes it to the gh-pages branch. gh-pages is a generated deploy
+# branch (its content is 100% derived from public/), so force-pushing is the
+# right call: it avoids the "non-fast-forward" rejection you hit when gh-pages
+# diverges (e.g. GitHub adds a CNAME commit when you set a custom domain).
 #
 # Notes:
-#  - Only fires for pushes of main/master to origin. The inner push to
-#    gh-pages does NOT re-trigger it (its ref isn't main/master).
-#  - Runs *before* the push to main lands, but it deploys the exact commits
-#    being pushed, so gh-pages matches main.
+#  - Only fires for main/master pushed to origin. The inner push to gh-pages is
+#    not main/master, so it doesn't re-trigger this hook.
+#  - Deploys the exact commit being pushed, so gh-pages matches main.
 #  - If the deploy fails it only warns — your push to main still proceeds.
 set -u
 
@@ -24,23 +25,25 @@ ZERO="0000000000000000000000000000000000000000"
 # Only auto-deploy when pushing to origin.
 [ "$remote_name" = "$DEPLOY_REMOTE" ] || exit 0
 
-# Decide whether this push includes main/master (git feeds ref lines on stdin).
-deploy=0
+# Find the commit of main/master in this push (git feeds ref lines on stdin).
+main_sha=""
 while read -r local_ref local_sha remote_ref remote_sha; do
   case "$remote_ref" in
     refs/heads/main|refs/heads/master)
-      if [ "$local_sha" != "$ZERO" ]; then deploy=1; fi  # skip branch deletions
+      if [ "$local_sha" != "$ZERO" ]; then main_sha="$local_sha"; fi  # skip deletions
       ;;
   esac
 done
 
-[ "$deploy" -eq 1 ] || exit 0
+[ -n "$main_sha" ] || exit 0
 
 echo "↪ pre-push: deploying '$PREFIX/' → $DEPLOY_REMOTE/$DEPLOY_BRANCH (GitHub Pages)…"
-if git subtree push --prefix "$PREFIX" "$DEPLOY_REMOTE" "$DEPLOY_BRANCH"; then
+split_sha="$(git subtree split --prefix "$PREFIX" "$main_sha" | tail -n1)"
+if [ -n "$split_sha" ] && git push --force "$DEPLOY_REMOTE" "$split_sha:refs/heads/$DEPLOY_BRANCH"; then
   echo "✓ pre-push: $DEPLOY_REMOTE/$DEPLOY_BRANCH updated."
 else
   echo "⚠ pre-push: gh-pages deploy failed — your push to $remote_name will still proceed." >&2
-  echo "  Re-run it manually: git subtree push --prefix $PREFIX $DEPLOY_REMOTE $DEPLOY_BRANCH" >&2
+  echo "  Re-run manually:" >&2
+  echo "    git push --force $DEPLOY_REMOTE \"\$(git subtree split --prefix $PREFIX main):refs/heads/$DEPLOY_BRANCH\"" >&2
 fi
 exit 0
