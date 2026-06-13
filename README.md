@@ -4,7 +4,7 @@ A browser-based drum-practice coach powered by Node.js. Play an acoustic or
 electronic kit near your microphone and DrumCoach will:
 
 - **Listen** to your microphone and detect drum onsets in real time
-- **Classify** each hit as **kick, snare, tom 1/2/3, ride, or crash**
+- **Classify** each hit as **kick, snare, tom 1/2/3, hi-hat, ride, or crash**
 - **Notate** what you played on a live, scrolling standard drum staff
 - **Measure your timing** — live BPM, steadiness, and how far you are drifting
 - **Metronome** with visual + audible click so you can lock to a tempo
@@ -72,7 +72,7 @@ Commits are made as items are ticked off.
 - [x] **T1** — Node static server (`server.js`) + base HTML/CSS shell
 - [x] **T2** — Drum staff notation renderer (live scrolling canvas)
 - [x] **T3** — Microphone capture + onset detection
-- [x] **T4** — Drum classification (kick / snare / toms / ride / crash) + calibration
+- [x] **T4** — Drum classification (kick / snare / toms / hi-hat / ride / crash) + calibration
 - [x] **T5** — Timing engine: live BPM, steadiness, drift indicator
 - [x] **T6** — Metronome with audible click + visual beat
 - [x] **T7** — Pattern sequencer: annotate 4/8/16 bars and score accuracy
@@ -98,6 +98,7 @@ Commits are made as items are ticked off.
 | Kick | strong sub/low energy, low centroid |
 | Snare | broadband + noisy, mid centroid, short decay |
 | Tom 1/2/3 | tonal mid energy; centroid high→low picks 1→3 |
+| Hi-hat | bright high/very-high energy, very short decay, highest centroid |
 | Ride | high-band energy, longer decay, lower level |
 | Crash | very-high broadband energy, loud, long decay |
 
