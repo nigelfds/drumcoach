@@ -9,6 +9,7 @@ import { ProfileStore } from "./profiles-store.js";
 import { DrumSynth } from "./drum-synth.js";
 import { PatternPlayer } from "./pattern-player.js";
 import { PatternStore } from "./pattern-store.js";
+import { CloudSync } from "./cloud-sync.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -22,6 +23,7 @@ const kits = new ProfileStore();
 const patterns = new PatternStore();
 const synth = new DrumSynth();
 const player = new PatternPlayer(synth, seq, 100);
+const cloud = new CloudSync({ kits, patterns });
 
 // --- UI state --------------------------------------------------------------
 const state = {
@@ -666,5 +668,55 @@ buildCalibration();
   }
   refreshPatternSelect();
 })();
+
+// --- Cloud sync (optional; off unless Firebase is configured) --------------
+const syncBtn = $("sync-btn");
+
+// Called after cloud data merges into the local stores: refresh the lists and
+// keep the engine's profiles in step with the (possibly updated) active kit.
+function onCloudData() {
+  refreshKitSelect();
+  refreshPatternSelect();
+  const activeId = kits.activeId();
+  const rec = activeId && kits.get(activeId);
+  if (rec) engine.importProfiles(rec.profiles);
+}
+
+function updateSyncUi(status) {
+  if (!syncBtn) return;
+  if (status.state === "disabled") { syncBtn.hidden = true; return; }
+  syncBtn.hidden = false;
+  switch (status.state) {
+    case "connecting":
+      syncBtn.textContent = "☁ …"; syncBtn.disabled = true;
+      syncBtn.title = "Connecting to sync…"; break;
+    case "anonymous":
+      syncBtn.disabled = false; syncBtn.textContent = "☁ Sync across devices";
+      syncBtn.title = "Save your kits & patterns to your Google account"; break;
+    case "signed-in": {
+      syncBtn.disabled = false;
+      const name = status.user?.displayName || status.user?.email || "Synced";
+      syncBtn.textContent = `☁ ${name}`;
+      syncBtn.title = "Synced across devices · click to sign out"; break;
+    }
+    case "error":
+      syncBtn.disabled = false; syncBtn.textContent = "☁ Sync (retry)";
+      syncBtn.title = "Sync error — click to try again"; break;
+  }
+}
+
+syncBtn?.addEventListener("click", () => {
+  const st = cloud.status();
+  if (st.state === "anonymous" || st.state === "error") {
+    cloud.signInWithGoogle();
+  } else if (st.state === "signed-in") {
+    if (confirm("Sign out of sync? Your kits and patterns stay on this device and sync again when you sign back in.")) {
+      cloud.signOutToGuest();
+    }
+  }
+});
+
+cloud.onUpdate(onCloudData).onStatus(updateSyncUi);
+cloud.start();
 
 requestAnimationFrame(render);
