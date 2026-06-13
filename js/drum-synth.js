@@ -11,6 +11,9 @@ export class DrumSynth {
     this.ctx = null;
   }
 
+  // The audio context (created/resumed on demand). Call from a user gesture.
+  context() { return this._ensure(); }
+
   // Lazily create / resume the context. Always call from a user gesture.
   _ensure() {
     if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -18,9 +21,15 @@ export class DrumSynth {
     return this.ctx;
   }
 
+  // Play immediately (e.g. the per-row preview button).
   play(voice) {
+    this.playAt(voice, this._ensure().currentTime);
+  }
+
+  // Play a voice at a precise AudioContext time — used by the pattern player's
+  // lookahead scheduler so loops stay tight.
+  playAt(voice, t) {
     const ctx = this._ensure();
-    const t = ctx.currentTime;
     const out = ctx.createGain();
     out.gain.value = 0.9;
     out.connect(ctx.destination);

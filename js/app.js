@@ -7,6 +7,7 @@ import { Metronome } from "./metronome.js";
 import { PatternSequencer } from "./sequencer.js";
 import { ProfileStore } from "./profiles-store.js";
 import { DrumSynth } from "./drum-synth.js";
+import { PatternPlayer } from "./pattern-player.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -18,6 +19,7 @@ const metro = new Metronome();
 const seq = new PatternSequencer();
 const kits = new ProfileStore();
 const synth = new DrumSynth();
+const player = new PatternPlayer(synth, seq, () => metro.bpm);
 
 // --- UI state --------------------------------------------------------------
 const state = {
@@ -240,6 +242,30 @@ $("practice-btn").addEventListener("click", () => {
   btn.textContent = state.practice ? "🎯 Practice on" : "🎯 Practice off";
   btn.classList.toggle("active", state.practice);
 });
+
+// --- Pattern playback (synth) ----------------------------------------------
+function highlightPlayColumn(step) {
+  for (const c of seqEl.querySelectorAll(".cell.playcol")) c.classList.remove("playcol");
+  if (step == null || step < 0) return;
+  for (const c of seqEl.querySelectorAll(`.cell[data-step="${step}"]`)) c.classList.add("playcol");
+}
+
+player.onStep = (step) => highlightPlayColumn(step);
+player.onStop = () => {
+  $("pattern-play").textContent = "▶ Play";
+  $("pattern-play").classList.add("btn-accent");
+  highlightPlayColumn(null);
+};
+
+$("pattern-play").addEventListener("click", () => {
+  player.toggle();
+  const playing = player.playing;
+  $("pattern-play").textContent = playing ? "■ Stop" : "▶ Play";
+  $("pattern-play").classList.toggle("btn-accent", !playing);
+  if (!playing) highlightPlayColumn(null);
+});
+
+$("pattern-loop").addEventListener("change", (e) => { player.loop = e.target.checked; });
 
 // ==========================================================================
 // Calibration

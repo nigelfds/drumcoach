@@ -169,6 +169,12 @@ input[type="number"] { width: 64px; text-align: center; }
 .cell:hover { background: #2a344a; }
 .cell.on { background: linear-gradient(180deg, var(--accent), #c93a4e); border-color: var(--accent); }
 .cell:active { transform: scale(0.92); }
+/* Moving playhead column while the pattern is playing. */
+.cell.playcol { box-shadow: 0 0 0 2px var(--accent-2), 0 0 9px rgba(90,160,255,0.55); }
+
+/* Loop toggle in the Pattern header. */
+.loop-toggle { display: inline-flex; align-items: center; gap: 5px; font-size: 0.85rem; color: var(--muted); cursor: pointer; }
+.loop-toggle input { accent-color: var(--accent-2); cursor: pointer; }
 
 /* Score ---------------------------------------------------------------- */
 .score { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; align-items: center; }
