@@ -295,3 +295,5 @@ input[type="number"] { width: 64px; text-align: center; }
 
 /* Footer --------------------------------------------------------------- */
 .foot { text-align: center; color: var(--muted); font-size: 0.78rem; padding: 24px; }
+.foot .credit { display: block; margin-top: 6px; font-size: 0.74rem; opacity: 0.75; }
+.foot .credit a { color: inherit; }
