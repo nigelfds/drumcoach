@@ -53,6 +53,7 @@ export class AudioEngine {
     this._lastOnsetAt = 0;
     this._minOnsetGap = 0.06;        // seconds debounce between hits
     this.sensitivity = 1.0;          // user-adjustable multiplier (lower = more sensitive)
+    this._energyFloor = null;        // per-signal ambient floor, for fair gating
 
     // Decay tracking for the in-progress hit.
     this._captureUntil = 0;
@@ -97,6 +98,9 @@ export class AudioEngine {
     this._freq = new Float32Array(this.analyser.frequencyBinCount);
     this._binHz = this.ctx.sampleRate / this.fftSize;
 
+    this._energyFloor = null;
+    this._fluxHistory = [];
+    this._prevSpectrum = null;
     this.running = true;
     this._raf = requestAnimationFrame(this._tick);
   }
@@ -114,7 +118,12 @@ export class AudioEngine {
     this.analyser.getFloatFrequencyData(this._freq); // dB values
 
     const feat = this._features(this._freq);
-    if (this._onLevel) this._onLevel(Math.min(1, feat.level / 0.5));
+    if (this._onLevel) {
+      // Log-scaled meter so quiet, high-frequency hits (hi-hat, ride) are
+      // visible too — not just the bass-heavy kick.
+      const meter = Math.max(0, Math.min(1, (Math.log10(feat.energy + 1e-9) + 6) / 6));
+      this._onLevel(meter);
+    }
 
     const flux = this._spectralFlux(this._freq);
     const t = this.now();
@@ -169,6 +178,7 @@ export class AudioEngine {
     const centroid = centroidDen ? centroidNum / centroidDen : 0;
     frac.centroidN = Math.min(1, centroid / 8000);
     frac.centroid = centroid;
+    frac.energy = total;                // raw spectral energy (for fair gating)
     frac.level = Math.sqrt(total) / 40; // rough loudness proxy
     return frac;
   }
@@ -196,11 +206,21 @@ export class AudioEngine {
     const mean = this._fluxHistory.reduce((a, b) => a + b, 0) / this._fluxHistory.length;
     const variance = this._fluxHistory.reduce((a, b) => a + (b - mean) ** 2, 0) / this._fluxHistory.length;
     const std = Math.sqrt(variance);
-    const threshold = (mean + 2.2 * std) * this.sensitivity + 0.0005;
+    const threshold = (mean + 2.0 * std) * this.sensitivity + 0.0004;
 
-    const loudEnough = feat.level > 0.012;
+    // Per-signal relative energy floor. It rises slowly and drops instantly, so
+    // it tracks the ambient / decay floor of whatever you're playing. A hit then
+    // shows up as energy several times above that floor — which is true for a
+    // quiet hi-hat just as much as a booming kick. This replaces the old
+    // absolute level gate that only the bass-heavy kick could clear.
+    const e = feat.energy;
+    this._energyFloor = this._energyFloor == null
+      ? e
+      : Math.min(e, this._energyFloor * 1.06 + 1e-8);
+    const aboveFloor = e > this._energyFloor * 3.5 && e > 2e-6;
+
     const debounced = t - this._lastOnsetAt > this._minOnsetGap;
-    return flux > threshold && loudEnough && debounced;
+    return flux > threshold && aboveFloor && debounced;
   }
 
   // --- classification -----------------------------------------------------

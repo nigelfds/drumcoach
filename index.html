@@ -113,16 +113,34 @@
         <button id="reset-cal" class="btn btn-small">Reset to defaults</button>
       </div>
       <p class="hint">
-        Recognition uses default profiles. To adapt to your kit, click a voice
-        then hit that drum 3–5 times. Adjust sensitivity if hits are missed or
-        doubled.
+        Recognition uses default profiles. To adapt to your kit:
+        <strong>1.</strong> pick a drum below,
+        <strong>2.</strong> press <em>Start calibration</em>,
+        <strong>3.</strong> hit that drum a few times,
+        <strong>4.</strong> press <em>Stop calibration</em>.
       </p>
+
+      <div class="cal-step">1 · Pick a drum</div>
       <div class="cal-grid" id="cal-grid"></div>
+
+      <div class="cal-step">2 · Record</div>
+      <div class="row cal-actions">
+        <button id="cal-toggle" class="btn cal-start" disabled>● Start calibration</button>
+        <span id="cal-status" class="hint">Pick a drum above to begin.</span>
+      </div>
+
+      <div id="cal-banner" class="cal-banner" hidden>
+        <span class="rec-dot"></span>
+        <span id="cal-banner-text">Recording…</span>
+        <span id="cal-count" class="cal-count">0 hits</span>
+      </div>
+
+      <div class="cal-step">Detection sensitivity</div>
       <div class="row">
-        <label class="sens">Sensitivity
+        <label class="sens">Quieter hits ◀
           <input id="sens-range" type="range" min="0.4" max="2.5" step="0.05" value="1" class="slider" />
+          ▶ Fewer false hits
         </label>
-        <span id="cal-status" class="hint"></span>
       </div>
     </section>
   </main>

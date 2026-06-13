@@ -18,7 +18,8 @@ const seq = new PatternSequencer();
 // --- UI state --------------------------------------------------------------
 const state = {
   practice: false,
-  calibrating: null,        // voice currently being calibrated
+  calVoice: null,           // voice selected for calibration (not yet recording)
+  calibrating: null,        // voice currently being recorded
   calSamples: [],
 };
 
@@ -37,9 +38,8 @@ engine.onHit((voice, info) => {
   // Calibration capture takes precedence over normal handling.
   if (state.calibrating) {
     state.calSamples.push(info.features);
-    $("cal-status").textContent =
-      `Calibrating ${VOICE_LABEL[state.calibrating]} — sample ${state.calSamples.length}/4`;
-    if (state.calSamples.length >= 4) finishCalibration();
+    updateCalBanner();
+    if (state.calSamples.length >= 16) stopCalibration(); // safety cap
     return;
   }
 
@@ -62,6 +62,7 @@ engine.onHit((voice, info) => {
 
 $("mic-btn").addEventListener("click", async () => {
   if (engine.running) {
+    if (state.calibrating) stopCalibration();
     engine.stop();
     metro.stop();
     $("mic-btn").textContent = "▶ Start mic";
@@ -200,45 +201,90 @@ $("practice-btn").addEventListener("click", () => {
 // Calibration
 // ==========================================================================
 const calGrid = $("cal-grid");
+const calToggle = $("cal-toggle");
+
 function buildCalibration() {
   calGrid.innerHTML = "";
   for (const voice of seq.voiceKeys) {
     const btn = document.createElement("button");
     btn.className = "cal-btn";
     btn.textContent = VOICE_LABEL[voice];
-    btn.addEventListener("click", () => startCalibration(voice, btn));
+    btn.dataset.voice = voice;
+    btn.addEventListener("click", () => selectCalVoice(voice));
     calGrid.appendChild(btn);
   }
 }
 
-function startCalibration(voice, btn) {
-  if (!engine.running) { alert("Start the microphone first."); return; }
-  // Clear any previous selection.
-  for (const b of calGrid.children) b.classList.remove("active");
-  state.calibrating = voice;
-  state.calSamples = [];
-  btn.classList.add("active");
-  $("cal-status").textContent = `Calibrating ${VOICE_LABEL[voice]} — hit it 4 times…`;
+// Step 1: choose which drum to calibrate (does not start recording yet).
+function selectCalVoice(voice) {
+  if (state.calibrating) return; // can't switch mid-recording
+  state.calVoice = voice;
+  for (const b of calGrid.children) b.classList.toggle("selected", b.dataset.voice === voice);
+  calToggle.disabled = false;
+  $("cal-status").textContent =
+    `Ready to calibrate ${VOICE_LABEL[voice]} — press Start, then hit it a few times.`;
 }
 
-function finishCalibration() {
+// Step 2: explicit Start / Stop so the player always knows the mode.
+calToggle.addEventListener("click", () => {
+  if (state.calibrating) stopCalibration();
+  else startCalibration();
+});
+
+function startCalibration() {
+  if (!engine.running) { alert("Start the microphone first."); return; }
+  if (!state.calVoice) { alert("Pick a drum to calibrate first."); return; }
+
+  state.calibrating = state.calVoice;
+  state.calSamples = [];
+
+  calToggle.textContent = "■ Stop calibration";
+  calToggle.classList.remove("cal-start");
+  calToggle.classList.add("recording");
+  for (const b of calGrid.children) b.disabled = true; // lock selection
+
+  $("cal-status").textContent = "";
+  $("cal-banner").hidden = false;
+  $("cal-banner-text").textContent =
+    `Recording ${VOICE_LABEL[state.calibrating]} — hit it a few times, then press Stop`;
+  updateCalBanner();
+}
+
+function updateCalBanner() {
+  const n = state.calSamples.length;
+  $("cal-count").textContent = `${n} hit${n === 1 ? "" : "s"} captured`;
+}
+
+function stopCalibration() {
   const voice = state.calibrating;
-  // Average the collected feature samples.
+  const n = state.calSamples.length;
+
+  calToggle.textContent = "● Start calibration";
+  calToggle.classList.add("cal-start");
+  calToggle.classList.remove("recording");
+  for (const b of calGrid.children) b.disabled = false;
+  $("cal-banner").hidden = true;
+  state.calibrating = null;
+
+  if (n === 0) {
+    $("cal-status").textContent =
+      `No hits detected for ${VOICE_LABEL[voice]}. Drag sensitivity left and play a little louder, then retry.`;
+    return;
+  }
+
+  // Average the collected feature samples into the voice's profile centroid.
   const avg = {};
   const keys = ["sub", "low", "lowMid", "mid", "high", "veryHigh", "centroidN", "centroid", "level"];
-  for (const k of keys) {
-    avg[k] = state.calSamples.reduce((s, f) => s + (f[k] ?? 0), 0) / state.calSamples.length;
-  }
+  for (const k of keys) avg[k] = state.calSamples.reduce((s, f) => s + (f[k] ?? 0), 0) / n;
   engine.calibrateVoice(voice, avg);
-  $("cal-status").textContent = `✓ ${VOICE_LABEL[voice]} calibrated`;
-  for (const b of calGrid.children) b.classList.remove("active");
-  state.calibrating = null;
   state.calSamples = [];
+  $("cal-status").textContent = `✓ ${VOICE_LABEL[voice]} calibrated from ${n} hit${n === 1 ? "" : "s"}.`;
 }
 
 $("reset-cal").addEventListener("click", () => {
+  if (state.calibrating) stopCalibration();
   engine.resetProfiles();
-  $("cal-status").textContent = "Profiles reset to defaults";
+  $("cal-status").textContent = "Profiles reset to defaults.";
 });
 
 // ==========================================================================
