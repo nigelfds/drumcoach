@@ -57,14 +57,15 @@ export class Notation {
   _resize() {
     const rect = this.canvas.getBoundingClientRect();
     this.w = Math.max(320, rect.width);
-    this.h = Math.max(180, rect.height);
+    this.h = Math.max(260, rect.height);
     this.canvas.width = this.w * this._dpr;
     this.canvas.height = this.h * this._dpr;
     this.ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
 
-    // Staff geometry.
-    this.lineGap = Math.min(16, this.h / 14);
-    this.staffMidY = this.h * 0.52;
+    // Staff geometry. A wider line gap spreads the voices out so each notehead
+    // sits clearly on / between the right staff line.
+    this.lineGap = Math.min(26, this.h / 12);
+    this.staffMidY = this.h * 0.47;
     this.leftPad = 64;            // room for voice labels
     this.nowX = this.w - 48;      // the "now" playhead
   }

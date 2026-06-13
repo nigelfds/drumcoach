@@ -75,7 +75,7 @@ main {
 
 /* Staff ---------------------------------------------------------------- */
 .staff-canvas {
-  width: 100%; height: 260px; display: block;
+  width: 100%; height: 340px; display: block;
   background: linear-gradient(180deg, #0f1420, #121826);
   border-radius: 8px; border: 1px solid var(--line);
 }
