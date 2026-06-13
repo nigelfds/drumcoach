@@ -52,6 +52,8 @@ The app is split into focused modules so each can be built and committed on its 
 | Timing | `public/js/timing.js` | BPM estimation + drift / steadiness analysis |
 | Metronome | `public/js/metronome.js` | Scheduled click + visual beat indicator |
 | Sequencer | `public/js/sequencer.js` | Annotate a 4/8/16-bar pattern, score the player |
+| Drum synth | `public/js/drum-synth.js` | Web Audio drum-voice synth for the per-row sample previews |
+| Kit profiles | `public/js/profiles-store.js` | Persist named calibration profiles to localStorage |
 | App | `public/js/app.js` | Wires modules together and owns UI state |
 
 ### Architecture at a glance
@@ -119,7 +121,7 @@ kit / room and switch between them. Profiles persist in the browser via
 ### Voice rejection
 
 Microphones pick up talking and singing, which can fire false hits. The
-**Voice rejection** selector (in the Calibrate & tune panel) filters these out
+**Voice rejection** selector (in the Settings panel) filters these out
 without touching drum detection:
 
 | Mode | What it does |
