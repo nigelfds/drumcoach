@@ -8,6 +8,7 @@ import { PatternSequencer } from "./sequencer.js";
 import { ProfileStore } from "./profiles-store.js";
 import { DrumSynth } from "./drum-synth.js";
 import { PatternPlayer } from "./pattern-player.js";
+import { PatternStore } from "./pattern-store.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -18,6 +19,7 @@ const timing = new TimingAnalyzer();
 const metro = new Metronome();
 const seq = new PatternSequencer();
 const kits = new ProfileStore();
+const patterns = new PatternStore();
 const synth = new DrumSynth();
 const player = new PatternPlayer(synth, seq, () => metro.bpm);
 
@@ -267,6 +269,81 @@ $("pattern-play").addEventListener("click", () => {
 
 $("pattern-loop").addEventListener("change", (e) => { player.loop = e.target.checked; });
 
+// --- Saved patterns (per kit, localStorage) --------------------------------
+function activeKitLabel() {
+  const rec = kits.activeId() && kits.get(kits.activeId());
+  return rec ? `“${rec.name}”` : "the default kit";
+}
+
+function refreshPatternSelect() {
+  const sel = $("pattern-select");
+  const list = patterns.list(kits.activeId());
+  const active = patterns.activeId();
+  sel.innerHTML = "";
+  const blank = document.createElement("option");
+  blank.value = "";
+  blank.textContent = list.length ? "— select a pattern —" : "— none saved —";
+  sel.appendChild(blank);
+  for (const p of list) {
+    const o = document.createElement("option");
+    o.value = p.id;
+    o.textContent = p.name;
+    sel.appendChild(o);
+  }
+  sel.value = active && patterns.get(active) && sel.querySelector(`option[value="${active}"]`) ? active : "";
+  $("pattern-delete").disabled = !sel.value;
+}
+
+// Apply a saved pattern's data to the live grid + keep the UI in sync.
+function applyPattern(data) {
+  seq.import(data);
+  metro.setBeatsPerBar(seq.beatsPerBar);
+  $("beats-select").value = seq.beatsPerBar;
+  $("bars-select").value = seq.bars;
+  rebuildBeatDots();
+  buildSequencer();
+}
+
+function loadPattern(id) {
+  const rec = id && patterns.get(id);
+  if (!rec) { patterns.setActive(null); refreshPatternSelect(); return; }
+  applyPattern(rec.data);
+  patterns.setActive(id);
+  $("pattern-name").value = rec.name;
+  refreshPatternSelect();
+  $("pattern-store-status").textContent = `Loaded “${rec.name}”.`;
+}
+
+$("pattern-select").addEventListener("change", (e) => loadPattern(e.target.value));
+
+$("pattern-save-btn").addEventListener("click", () => {
+  const name = $("pattern-name").value.trim();
+  if (!name) { $("pattern-store-status").textContent = "Type a name first, then press Save."; $("pattern-name").focus(); return; }
+  const rec = patterns.save(name, kits.activeId(), seq.export());
+  refreshPatternSelect();
+  $("pattern-store-status").textContent = `Saved “${rec.name}” for ${activeKitLabel()}.`;
+});
+
+$("pattern-delete").addEventListener("click", () => {
+  const id = $("pattern-select").value;
+  const rec = id && patterns.get(id);
+  if (!rec) return;
+  if (!confirm(`Delete saved pattern “${rec.name}”?`)) return;
+  patterns.remove(id);
+  $("pattern-name").value = "";
+  refreshPatternSelect();
+  $("pattern-store-status").textContent = `Deleted “${rec.name}”.`;
+});
+
+// Patterns are kit-scoped, so when the active kit changes the saved-pattern
+// list must follow it (without disturbing the current grid).
+function onActiveKitChanged() {
+  patterns.setActive(null);
+  $("pattern-name").value = "";
+  $("pattern-store-status").textContent = "";
+  refreshPatternSelect();
+}
+
 // ==========================================================================
 // Calibration
 // ==========================================================================
@@ -394,6 +471,7 @@ function loadKit(id) {
     kits.setActive(null);
     state.kitDirty = false;
     refreshKitSelect();
+    onActiveKitChanged();
     setKitStatus("Using default (uncalibrated) profiles.");
     return;
   }
@@ -404,6 +482,7 @@ function loadKit(id) {
   state.kitDirty = false;
   $("kit-name").value = rec.name;
   refreshKitSelect();
+  onActiveKitChanged();
   setKitStatus(`Loaded kit “${rec.name}”.`);
 }
 
@@ -415,6 +494,7 @@ $("kit-save").addEventListener("click", () => {
   const rec = kits.save(name, engine.exportProfiles());
   state.kitDirty = false;
   refreshKitSelect();
+  onActiveKitChanged(); // the new kit is now active → its (empty) pattern list
   setKitStatus(`Saved kit “${rec.name}”. It will load automatically next time.`);
 });
 
@@ -424,10 +504,12 @@ $("kit-delete").addEventListener("click", () => {
   if (!rec) return;
   if (!confirm(`Delete saved kit “${rec.name}”? This cannot be undone.`)) return;
   kits.remove(id);
+  patterns.removeForKit(id); // drop the deleted kit's patterns too
   engine.resetProfiles();
   $("kit-name").value = "";
   state.kitDirty = false;
   refreshKitSelect();
+  onActiveKitChanged();
   setKitStatus(`Deleted “${rec.name}”. Back to default profiles.`);
 });
 
@@ -440,6 +522,7 @@ $("forget-cal").addEventListener("click", () => {
   state.kitDirty = false;
   $("kit-name").value = "";
   refreshKitSelect();
+  onActiveKitChanged();
   setKitStatus("Calibration forgotten — using default profiles. Saved kits are untouched.");
   $("cal-status").textContent = "Pick a drum to calibrate.";
 });
@@ -530,6 +613,20 @@ buildCalibration();
     setKitStatus(`Loaded saved kit “${rec.name}”.`);
   }
   refreshKitSelect();
+})();
+
+// Restore the last-used pattern, but only if it belongs to the active kit.
+(function restorePattern() {
+  const activeId = patterns.activeId();
+  const rec = activeId && patterns.get(activeId);
+  if (rec && (rec.kitId || null) === (kits.activeId() || null)) {
+    applyPattern(rec.data);
+    $("pattern-name").value = rec.name;
+    $("pattern-store-status").textContent = `Restored “${rec.name}”.`;
+  } else if (rec) {
+    patterns.setActive(null); // last pattern was for a different kit
+  }
+  refreshPatternSelect();
 })();
 
 requestAnimationFrame(render);

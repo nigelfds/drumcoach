@@ -105,6 +105,21 @@
       <div class="seq-scroll">
         <div id="sequencer" class="sequencer"></div>
       </div>
+
+      <div class="row pattern-store-row">
+        <label class="kit-field">Saved pattern
+          <select id="pattern-select" title="Load a saved pattern for the current kit"></select>
+        </label>
+        <label class="kit-field grow">Name
+          <input id="pattern-name" type="text" placeholder="e.g. Basic rock beat…" maxlength="40" />
+        </label>
+        <div class="kit-actions">
+          <button id="pattern-save-btn" class="btn btn-small btn-accent">Save</button>
+          <button id="pattern-delete" class="btn btn-small" disabled>Delete</button>
+        </div>
+        <span id="pattern-store-status" class="hint"></span>
+      </div>
+
       <div class="score" id="score">
         <span class="score-pill">Annotate a pattern, turn on Practice, start the metronome, and play.</span>
       </div>

@@ -55,6 +55,7 @@ The app is split into focused modules so each can be built and committed on its 
 | Sequencer | `public/js/sequencer.js` | Annotate a 4/8/16-bar pattern, score the player |
 | Drum synth | `public/js/drum-synth.js` | Web Audio drum-voice synth for sample previews + pattern playback |
 | Pattern player | `public/js/pattern-player.js` | Lookahead scheduler that plays the pattern (looping optional) |
+| Pattern store | `public/js/pattern-store.js` | Persist named patterns per kit to localStorage |
 | Kit profiles | `public/js/profiles-store.js` | Persist named calibration profiles to localStorage |
 | App | `public/js/app.js` | Wires modules together and owns UI state |
 
@@ -82,7 +83,9 @@ Commits are made as items are ticked off.
 - [x] **T7** — Pattern sequencer: annotate 4/8/16 bars and score accuracy
 - [x] **T8** — Wire everything in `app.js` + polish UI
 - [x] **T9a** — Persist named calibration **kit profiles** to localStorage (save / switch / delete / forget)
-- [ ] **T9** — Stretch: persist patterns to localStorage, export MIDI, latency calibration wizard
+- [x] **T9b** — Play the pattern through a built-in **drum synth**, with an optional loop
+- [x] **T9c** — Persist named **patterns per kit** to localStorage (save / load / delete, auto-restore)
+- [ ] **T9** — Stretch: export MIDI, latency calibration wizard
 
 ---
 
@@ -119,6 +122,12 @@ kit / room and switch between them. Profiles persist in the browser via
 - **Delete** removes a saved kit; **Forget calibration** reverts the live engine
   to default profiles without touching anything you've saved.
 - Calibrating a voice while a kit is active **auto-saves** into that kit.
+
+**Saved patterns** work the same way and are **scoped to the active kit**: name the
+grid in the Pattern panel and **Save** it, pick one from the dropdown to load it,
+**Delete** to remove it. The saved-pattern list follows whichever kit is active,
+and the last pattern is restored on the next visit (stored under
+`drumcoach.patterns.v1`, handled by `public/js/pattern-store.js`).
 
 ### Voice rejection
 
