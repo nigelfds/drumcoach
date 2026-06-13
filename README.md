@@ -77,6 +77,7 @@ Commits are made as items are ticked off.
 - [x] **T6** — Metronome with audible click + visual beat
 - [x] **T7** — Pattern sequencer: annotate 4/8/16 bars and score accuracy
 - [x] **T8** — Wire everything in `app.js` + polish UI
+- [x] **T9a** — Persist named calibration **kit profiles** to localStorage (save / switch / delete / forget)
 - [ ] **T9** — Stretch: persist patterns to localStorage, export MIDI, latency calibration wizard
 
 ---
@@ -101,6 +102,19 @@ Commits are made as items are ticked off.
 | Hi-hat | bright high/very-high energy, very short decay, highest centroid |
 | Ride | high-band energy, longer decay, lower level |
 | Crash | very-high broadband energy, loud, long decay |
+
+### Kit profiles (saved calibration)
+
+Calibration is stored as a named **kit profile** so you can keep one per drum
+kit / room and switch between them. Profiles persist in the browser via
+`localStorage` (key `drumcoach.kits.v1`), handled by `public/js/profiles-store.js`:
+
+- **Save** the current calibration under a name (re-saving the same name updates it).
+- Pick a saved kit from the **dropdown** to load it; the last-used kit is
+  restored automatically on the next visit.
+- **Delete** removes a saved kit; **Forget calibration** reverts the live engine
+  to default profiles without touching anything you've saved.
+- Calibrating a voice while a kit is active **auto-saves** into that kit.
 
 ### Voice rejection
 

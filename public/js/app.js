@@ -5,6 +5,7 @@ import { AudioEngine } from "./audio-engine.js";
 import { TimingAnalyzer } from "./timing.js";
 import { Metronome } from "./metronome.js";
 import { PatternSequencer } from "./sequencer.js";
+import { ProfileStore } from "./profiles-store.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -14,6 +15,7 @@ const engine = new AudioEngine();
 const timing = new TimingAnalyzer();
 const metro = new Metronome();
 const seq = new PatternSequencer();
+const kits = new ProfileStore();
 
 // --- UI state --------------------------------------------------------------
 const state = {
@@ -21,6 +23,7 @@ const state = {
   calVoice: null,           // voice selected for calibration (not yet recording)
   calibrating: null,        // voice currently being recorded
   calSamples: [],
+  kitDirty: false,          // live calibration has unsaved changes
 };
 
 const VOICE_LABEL = Object.fromEntries(
@@ -303,12 +306,97 @@ function stopCalibration() {
   engine.calibrateVoice(voice, avg);
   state.calSamples = [];
   $("cal-status").textContent = `✓ ${VOICE_LABEL[voice]} calibrated from ${n} hit${n === 1 ? "" : "s"}.`;
+
+  // Persist: if a named kit is active, auto-save into it; otherwise mark the
+  // live calibration as unsaved so the player can name + Save it as a new kit.
+  const activeId = kits.activeId();
+  if (activeId && kits.get(activeId)) {
+    const rec = kits.updateProfiles(activeId, engine.exportProfiles());
+    setKitStatus(`Saved ${VOICE_LABEL[voice]} into kit “${rec.name}”.`);
+  } else {
+    state.kitDirty = true;
+    setKitStatus("Unsaved calibration — name this kit and press Save to keep it.");
+  }
 }
 
-$("reset-cal").addEventListener("click", () => {
+// --- Kit profiles (localStorage-persisted calibration sets) ----------------
+function refreshKitSelect() {
+  const sel = $("kit-select");
+  const activeId = kits.activeId();
+  sel.innerHTML = "";
+
+  const def = document.createElement("option");
+  def.value = "";
+  def.textContent = "Default (uncalibrated)";
+  sel.appendChild(def);
+
+  for (const k of kits.list()) {
+    const o = document.createElement("option");
+    o.value = k.id;
+    o.textContent = k.name;
+    sel.appendChild(o);
+  }
+  sel.value = activeId && kits.get(activeId) ? activeId : "";
+  $("kit-delete").disabled = !sel.value;
+}
+
+function setKitStatus(msg) { $("kit-status").textContent = msg; }
+
+// Load a kit by id ("" = default/uncalibrated) into the live engine.
+function loadKit(id) {
+  if (!id) {
+    engine.resetProfiles();
+    kits.setActive(null);
+    state.kitDirty = false;
+    refreshKitSelect();
+    setKitStatus("Using default (uncalibrated) profiles.");
+    return;
+  }
+  const rec = kits.get(id);
+  if (!rec) { refreshKitSelect(); return; }
+  engine.importProfiles(rec.profiles);
+  kits.setActive(id);
+  state.kitDirty = false;
+  $("kit-name").value = rec.name;
+  refreshKitSelect();
+  setKitStatus(`Loaded kit “${rec.name}”.`);
+}
+
+$("kit-select").addEventListener("change", (e) => loadKit(e.target.value));
+
+$("kit-save").addEventListener("click", () => {
+  const name = $("kit-name").value.trim();
+  if (!name) { setKitStatus("Type a name first, then press Save."); $("kit-name").focus(); return; }
+  const rec = kits.save(name, engine.exportProfiles());
+  state.kitDirty = false;
+  refreshKitSelect();
+  setKitStatus(`Saved kit “${rec.name}”. It will load automatically next time.`);
+});
+
+$("kit-delete").addEventListener("click", () => {
+  const id = $("kit-select").value;
+  const rec = id && kits.get(id);
+  if (!rec) return;
+  if (!confirm(`Delete saved kit “${rec.name}”? This cannot be undone.`)) return;
+  kits.remove(id);
+  engine.resetProfiles();
+  $("kit-name").value = "";
+  state.kitDirty = false;
+  refreshKitSelect();
+  setKitStatus(`Deleted “${rec.name}”. Back to default profiles.`);
+});
+
+// "Forget calibration": revert the live engine to defaults without deleting any
+// saved kits. Just drops the current (possibly unsaved) calibration.
+$("forget-cal").addEventListener("click", () => {
   if (state.calibrating) stopCalibration();
   engine.resetProfiles();
-  $("cal-status").textContent = "Profiles reset to defaults.";
+  kits.setActive(null);
+  state.kitDirty = false;
+  $("kit-name").value = "";
+  refreshKitSelect();
+  setKitStatus("Calibration forgotten — using default profiles. Saved kits are untouched.");
+  $("cal-status").textContent = "Pick a drum to calibrate.";
 });
 
 // ==========================================================================
@@ -386,4 +474,17 @@ function updateScore() {
 rebuildBeatDots();
 buildSequencer();
 buildCalibration();
+
+// Restore the last-used kit profile from localStorage, if any.
+(function restoreKit() {
+  const activeId = kits.activeId();
+  const rec = activeId && kits.get(activeId);
+  if (rec) {
+    engine.importProfiles(rec.profiles);
+    $("kit-name").value = rec.name;
+    setKitStatus(`Loaded saved kit “${rec.name}”.`);
+  }
+  refreshKitSelect();
+})();
+
 requestAnimationFrame(render);

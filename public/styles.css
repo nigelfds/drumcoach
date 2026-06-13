@@ -216,6 +216,16 @@ input[type="number"] { width: 64px; text-align: center; }
 .cal-count { margin-left: auto; color: var(--accent-2); font-variant-numeric: tabular-nums; }
 .sens { flex: 1; gap: 10px; }
 
+/* Kit profile row. */
+.kit-row { gap: 8px; }
+.kit-row #kit-select { min-width: 150px; }
+.kit-row #kit-name {
+  flex: 1; min-width: 120px; max-width: 220px;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; font-size: 0.9rem;
+}
+.kit-row #kit-name::placeholder { color: var(--muted); }
+
 /* Voice-rejection segmented control. */
 .voice-row { gap: 14px; }
 .seg { display: inline-flex; background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; padding: 3px; gap: 3px; }
