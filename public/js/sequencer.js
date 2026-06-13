@@ -29,7 +29,7 @@ export class PatternSequencer {
   get stepsPerBar() { return this.beatsPerBar * this.stepsPerBeat; }
   get totalSteps() { return this.bars * this.stepsPerBar; }
 
-  setBars(n) { this.bars = [4, 8, 16].includes(n) ? n : this.bars; this.resetScore(); }
+  setBars(n) { this.bars = [1, 2, 4, 8, 16].includes(n) ? n : this.bars; this.resetScore(); }
   setBeatsPerBar(n) { this.beatsPerBar = Math.max(1, Math.min(16, n | 0)); this.resetScore(); }
 
   toggle(voice, step) {

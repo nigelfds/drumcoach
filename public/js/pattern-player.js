@@ -7,12 +7,12 @@ export class PatternPlayer {
   /**
    * @param {object} synth  DrumSynth (provides context() + playAt(voice, time))
    * @param {object} seq    PatternSequencer (active cells + grid dimensions)
-   * @param {() => number} getBpm  current tempo (e.g. () => metronome.bpm)
+   * @param {number} [bpm]  initial playback tempo
    */
-  constructor(synth, seq, getBpm) {
+  constructor(synth, seq, bpm = 100) {
     this.synth = synth;
     this.seq = seq;
-    this.getBpm = getBpm;
+    this.bpm = bpm;
 
     this.loop = true;
     this.playing = false;
@@ -50,7 +50,7 @@ export class PatternPlayer {
 
   _schedule(ctx) {
     if (this._ending) return; // one-shot finished; awaiting the deferred stop()
-    const bpm = this.getBpm() || 100;
+    const bpm = this.bpm || 100;
     const stepDur = 60 / bpm / this.seq.stepsPerBeat;
     const total = this.seq.totalSteps;
     const horizon = ctx.currentTime + this._lookahead;

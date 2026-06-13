@@ -8,8 +8,8 @@ electronic kit near your microphone and DrumCoach will:
 - **Notate** what you played on a live, scrolling standard drum staff
 - **Measure your timing** — live BPM, steadiness, and how far you are drifting
 - **Metronome** with visual + audible click so you can lock to a tempo
-- **Score your accuracy** against a pattern you annotate on a 4 / 8 / 16-bar sheet
-- **Play your pattern back** through a built-in drum synth, with an optional loop
+- **Score your accuracy** against a pattern you annotate on a 1–16-bar sheet (16th-note slots)
+- **Play your pattern back** through a built-in drum synth, at an adjustable tempo, with an optional loop
 
 Inspired by [Tone.js' step sequencer](https://github.com/Tonejs/Tone.js/blob/main/examples/stepSequencer.html)
 and [Chrome Music Lab: Rhythm](https://musiclab.chromeexperiments.com/Rhythm/).
