@@ -10,7 +10,7 @@ import { VOICES } from "./notation.js";
 export class PatternSequencer {
   constructor() {
     this.voiceKeys = Object.keys(VOICES); // crash, ride, tom1, tom2, snare, tom3, kick
-    this.bars = 4;
+    this.bars = 2;
     this.beatsPerBar = 4;
     this.stepsPerBeat = 4;       // 16th notes
     this.active = new Set();     // "voice:step"
