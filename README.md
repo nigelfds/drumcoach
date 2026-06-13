@@ -47,14 +47,23 @@ recommended for the best Web Audio support.
 
 ## Hosting (GitHub Pages)
 
-The app is a static client (everything in `public/`), so it's deployed straight
-to **GitHub Pages** by a GitHub Actions workflow — no server, no build step.
+The app is a static client (everything in `public/`), so it's deployed to
+**GitHub Pages** from a `gh-pages` branch that mirrors `public/` — no server, no
+build step.
 
-- Workflow: `.github/workflows/deploy-pages.yml` uploads `public/` and deploys
-  it on every push to `main`.
-- **One-time setup:** in the repo, go to **Settings → Pages → Build and
-  deployment → Source** and choose **GitHub Actions**.
+- **Pages source:** repo **Settings → Pages → Build and deployment → Source →
+  Deploy from a branch → `gh-pages` / `(root)`**.
+- **Deploy = just push `main`.** A `pre-push` hook (`.githooks/pre-push`) runs
+  `git subtree push --prefix public origin gh-pages` automatically whenever you
+  push `main` to origin. To deploy by hand instead:
+  `git subtree push --prefix public origin gh-pages`.
+- **One-time per clone:** activate the tracked hooks dir with
+  `git config core.hooksPath .githooks`.
 - Live URL: `https://nigelfds.github.io/drumcoach/`
+
+> An older `.github/workflows/deploy-pages.yml` (Actions-based deploy) is still in
+> the repo but is **not used** by this branch-based setup — remove it to avoid two
+> competing deploy mechanisms.
 
 Notes:
 - The microphone needs a secure context; GitHub Pages is served over **HTTPS**,
