@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🥁 DrumCoach</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥁</text></svg>" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1><span class="logo">🥁</span> DrumCoach</h1>
+    <div class="topbar-controls">
+      <div class="meter" title="Microphone input level">
+        <div id="level-fill" class="meter-fill"></div>
+      </div>
+      <button id="mic-btn" class="btn btn-primary">▶ Start mic</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Live staff ----------------------------------------------------- -->
+    <section class="panel staff-panel">
+      <div class="panel-head">
+        <h2>Live staff</h2>
+        <div class="last-hit">
+          last: <span id="last-voice">—</span>
+          <span id="last-conf" class="conf"></span>
+        </div>
+      </div>
+      <canvas id="staff" class="staff-canvas"></canvas>
+    </section>
+
+    <div class="grid-2">
+      <!-- Timing readouts --------------------------------------------- -->
+      <section class="panel">
+        <div class="panel-head"><h2>Timing</h2></div>
+        <div class="stats">
+          <div class="stat">
+            <div class="stat-value" id="bpm-value">—</div>
+            <div class="stat-label">your BPM</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value" id="steady-value">—</div>
+            <div class="stat-label">steadiness</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value" id="drift-value">—</div>
+            <div class="stat-label">drift</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value" id="tight-value">—</div>
+            <div class="stat-label">spread (ms)</div>
+          </div>
+        </div>
+        <p id="drift-hint" class="hint">Play along with the metronome to see drift.</p>
+      </section>
+
+      <!-- Metronome --------------------------------------------------- -->
+      <section class="panel">
+        <div class="panel-head"><h2>Metronome</h2></div>
+        <div class="row">
+          <button id="metro-btn" class="btn">▶ Start</button>
+          <div class="bpm-control">
+            <button id="bpm-down" class="btn btn-icon">−</button>
+            <input id="bpm-input" type="number" min="30" max="300" value="100" />
+            <span class="unit">BPM</span>
+            <button id="bpm-up" class="btn btn-icon">+</button>
+          </div>
+        </div>
+        <input id="bpm-range" type="range" min="40" max="220" value="100" class="slider" />
+        <div class="row">
+          <label>Beats / bar
+            <select id="beats-select">
+              <option>2</option><option>3</option><option selected>4</option>
+              <option>5</option><option>6</option><option>7</option><option>8</option>
+            </select>
+          </label>
+          <label class="vol">Volume
+            <input id="metro-vol" type="range" min="0" max="1" step="0.05" value="0.6" class="slider" />
+          </label>
+        </div>
+        <div class="beat-dots" id="beat-dots"></div>
+      </section>
+    </div>
+
+    <!-- Pattern sequencer --------------------------------------------- -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Pattern</h2>
+        <div class="seq-controls">
+          <label>Bars
+            <select id="bars-select">
+              <option>4</option><option>8</option><option>16</option>
+            </select>
+          </label>
+          <button id="practice-btn" class="btn">🎯 Practice off</button>
+          <button id="clear-pattern" class="btn">Clear</button>
+        </div>
+      </div>
+      <div class="seq-scroll">
+        <div id="sequencer" class="sequencer"></div>
+      </div>
+      <div class="score" id="score">
+        <span class="score-pill">Annotate a pattern, turn on Practice, start the metronome, and play.</span>
+      </div>
+    </section>
+
+    <!-- Calibration & sensitivity ------------------------------------- -->
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Calibrate &amp; tune</h2>
+        <button id="reset-cal" class="btn btn-small">Reset to defaults</button>
+      </div>
+      <p class="hint">
+        Recognition uses default profiles. To adapt to your kit, click a voice
+        then hit that drum 3–5 times. Adjust sensitivity if hits are missed or
+        doubled.
+      </p>
+      <div class="cal-grid" id="cal-grid"></div>
+      <div class="row">
+        <label class="sens">Sensitivity
+          <input id="sens-range" type="range" min="0.4" max="2.5" step="0.05" value="1" class="slider" />
+        </label>
+        <span id="cal-status" class="hint"></span>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>DrumCoach — practice tool. Recognition is heuristic; calibrate for best results.</span>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
