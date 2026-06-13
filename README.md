@@ -52,7 +52,7 @@ The app is a static client (everything in `public/`), so it's hosted on
 no server and no build step. The `gh-pages` branch is produced from `public/`
 with `git subtree`, so `public/` stays the single source of truth.
 
-Live URL: **`https://nigelfds.github.io/drumcoach/`**
+Live URL: **<https://drumcoach.nig.fm>** (custom domain → GitHub Pages)
 
 ### One-time setup
 
@@ -92,8 +92,14 @@ git subtree push --prefix public origin gh-pages
   so mic capture works.
 - Kit profiles and patterns are saved in the browser's `localStorage`, so there's
   nothing to persist server-side.
-- All asset paths are relative, so the app works correctly under the
-  `/drumcoach/` project-page subpath.
+- All asset paths are relative, so the app works whether it's served at the
+  custom-domain root (`drumcoach.nig.fm`) or under a `/drumcoach/` project-page
+  subpath.
+- **Custom domain + subtree deploys:** because `git subtree push` overwrites the
+  `gh-pages` branch, the GitHub Pages `CNAME` file must live in the repo at
+  `public/CNAME` (containing `drumcoach.nig.fm`) so it survives each deploy.
+  A DNS record alone won't keep it — without `public/CNAME`, the next deploy
+  wipes the custom-domain setting and Pages falls back to the `github.io` URL.
 
 ---
 
@@ -120,7 +126,7 @@ How it behaves:
 1. Create a project at <https://console.firebase.google.com> and add a **Web app**.
 2. **Authentication → Sign-in method:** enable **Anonymous** and **Google**.
 3. **Authentication → Settings → Authorized domains:** add your Pages domain
-   (e.g. `nigelfds.github.io`) so the Google popup works in production.
+   (`drumcoach.nig.fm`) so the Google popup works in production.
 4. **Firestore Database:** create one (production mode) and set these rules so each
    user can only touch their own document:
    ```
