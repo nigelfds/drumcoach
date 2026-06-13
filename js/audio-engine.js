@@ -55,15 +55,19 @@ export class AudioEngine {
     this.sensitivity = 1.0;          // user-adjustable multiplier (lower = more sensitive)
     this._energyFloor = null;        // per-signal ambient floor, for fair gating
 
-    // Decay tracking for the in-progress hit.
-    this._captureUntil = 0;
-    this._peakLevel = 0;
-    this._aboveHalfFrames = 0;
+    // Voice rejection: "off" | "moderate" | "aggressive". The gate sits between
+    // onset detection and hit emission, so "off" leaves the pipeline untouched.
+    this.voiceRejection = "aggressive";
+    this.suspendVoiceFilter = false;  // bypass while calibrating (no talking then)
+    this._candidate = null;           // pending onset awaiting a short decay watch
+    this._voiceRun = 0;               // consecutive voice-like frames (for VAD)
+    this._voiceActive = false;        // VAD: are we mid-speech right now?
 
     // Listeners.
     this._onHit = null;              // (voice, info)
     this._onLevel = null;            // (level 0..1) for the meter
     this._onFeatures = null;         // (features) raw, used by calibration
+    this._onVoiceReject = null;      // (info) fired when a hit is filtered as voice
 
     this._raf = null;
     this._tick = this._tick.bind(this);
@@ -72,6 +76,11 @@ export class AudioEngine {
   onHit(fn) { this._onHit = fn; return this; }
   onLevel(fn) { this._onLevel = fn; return this; }
   onFeatures(fn) { this._onFeatures = fn; return this; }
+  onVoiceReject(fn) { this._onVoiceReject = fn; return this; }
+
+  setVoiceRejection(mode) {
+    if (["off", "moderate", "aggressive"].includes(mode)) this.voiceRejection = mode;
+  }
 
   /** AudioContext clock — the single source of truth for timing. */
   now() { return this.ctx ? this.ctx.currentTime : performance.now() / 1000; }
@@ -101,6 +110,9 @@ export class AudioEngine {
     this._energyFloor = null;
     this._fluxHistory = [];
     this._prevSpectrum = null;
+    this._candidate = null;
+    this._voiceRun = 0;
+    this._voiceActive = false;
     this.running = true;
     this._raf = requestAnimationFrame(this._tick);
   }
@@ -128,28 +140,91 @@ export class AudioEngine {
     const flux = this._spectralFlux(this._freq);
     const t = this.now();
 
-    // Track decay of the current hit window.
-    if (t < this._captureUntil) {
-      this._peakLevel = Math.max(this._peakLevel, feat.level);
-      if (feat.level > this._peakLevel * 0.5) this._aboveHalfFrames++;
+    this._updateVad(feat);
+
+    // Grow the in-flight candidate's decay-watch window.
+    if (this._candidate) {
+      this._candidate.frames.push(feat);
+      this._candidate.peakEnergy = Math.max(this._candidate.peakEnergy, feat.energy);
     }
 
     if (this._isOnset(flux, feat, t)) {
       this._lastOnsetAt = t;
-      this._captureUntil = t + 0.18;
-      this._peakLevel = feat.level;
-      this._aboveHalfFrames = 1;
-
-      // Defer classification by a couple frames so the spectrum settles, then
-      // emit. We approximate "settled" by classifying on the onset frame; good
-      // enough at 60fps for practice.
-      const decayHint = this._aboveHalfFrames;
-      const { voice, confidence, scores } = this.classify(feat, decayHint);
-      if (this._onFeatures) this._onFeatures(feat);
-      if (this._onHit) this._onHit(voice, { time: t, confidence, features: feat, scores });
+      // A new onset closes any in-progress candidate early, then opens a fresh
+      // one. We keep classifying on the onset frame (unchanged), but defer the
+      // emit decision until we've watched ~80 ms of decay.
+      if (this._candidate) this._finalizeCandidate();
+      this._candidate = {
+        time: t,                        // true onset time — timing stays exact
+        onsetFeat: feat,
+        peakEnergy: feat.energy,
+        frames: [feat],
+        voiceActiveAtOnset: this._voiceActive,
+        endsAt: t + 0.08,
+      };
     }
 
+    // Emit (or reject) a candidate once its decay window has elapsed.
+    if (this._candidate && t >= this._candidate.endsAt) this._finalizeCandidate();
+
     this._raf = requestAnimationFrame(this._tick);
+  }
+
+  /** Decide whether a finished candidate is a real drum hit or a voice. */
+  _finalizeCandidate() {
+    const c = this._candidate;
+    this._candidate = null;
+    if (!c) return;
+
+    const filter = !this.suspendVoiceFilter && this.voiceRejection !== "off";
+    if (filter && this._looksLikeVoice(c)) {
+      if (this._onVoiceReject) this._onVoiceReject({ time: c.time });
+      return;
+    }
+
+    const { voice, confidence, scores } = this.classify(c.onsetFeat, 1);
+    if (this._onFeatures) this._onFeatures(c.onsetFeat);
+    if (this._onHit) this._onHit(voice, { time: c.time, confidence, features: c.onsetFeat, scores });
+  }
+
+  /**
+   * Voice gate: reject only when the onset is *sustained* AND *harmonic* AND
+   * *speech-banded*. This spares every drum — kick (wrong band), snare/cymbals
+   * (too noisy), toms (decay too fast) — while catching held vowels/singing.
+   */
+  _looksLikeVoice(c) {
+    const frames = c.frames;
+    if (frames.length < 2) return false;
+
+    const tail = frames.slice(-2);
+    const tailEnergy = tail.reduce((s, f) => s + f.energy, 0) / tail.length;
+    const sustainRatio = tailEnergy / (c.peakEnergy + 1e-12);
+    const avgFlatness = frames.reduce((s, f) => s + f.flatness, 0) / frames.length;
+    const avgVoiceBand = frames.reduce((s, f) => s + f.voiceBandFrac, 0) / frames.length;
+
+    const cfg = this.voiceRejection === "aggressive"
+      ? { sustain: 0.42, flat: 0.25, band: 0.55 }
+      : { sustain: 0.50, flat: 0.20, band: 0.62 };
+
+    const sustained = sustainRatio > cfg.sustain;
+    const harmonic = avgFlatness < cfg.flat;
+    const voiceBandHeavy = avgVoiceBand > cfg.band;
+
+    const baseVoice = sustained && harmonic && voiceBandHeavy;
+    if (this.voiceRejection === "moderate") return baseVoice;
+
+    // Aggressive also rejects harmonic, speech-banded onsets struck while the
+    // VAD says we're mid-talking — catches speech whose 80 ms decay looked
+    // ambiguous. Non-harmonic hits (snare/cymbal) are still kept.
+    return baseVoice || (c.voiceActiveAtOnset && harmonic && voiceBandHeavy);
+  }
+
+  /** Rolling voice-activity detector for the aggressive mode's VAD layer. */
+  _updateVad(feat) {
+    const aboveFloor = this._energyFloor != null && feat.energy > this._energyFloor * 2.5;
+    const voiceFrame = aboveFloor && feat.flatness < 0.28 && feat.voiceBandFrac > 0.55;
+    this._voiceRun = voiceFrame ? this._voiceRun + 1 : Math.max(0, this._voiceRun - 2);
+    this._voiceActive = this._voiceRun > 9; // ~150 ms of continuous speech-like sound
   }
 
   // --- feature extraction -------------------------------------------------
@@ -158,6 +233,9 @@ export class AudioEngine {
     // Convert dB to linear magnitude and accumulate per band.
     const bandEnergy = Object.fromEntries(BANDS.map(([n]) => [n, 0]));
     let total = 0, centroidNum = 0, centroidDen = 0;
+    // Voice-discrimination accumulators.
+    let voiceBandE = 0;                 // energy in the speech band (200–3400 Hz)
+    let logMagSum = 0, magSum = 0, flatBins = 0; // spectral flatness (250–4000 Hz)
 
     for (let i = 1; i < freqDb.length; i++) {
       const hz = i * this._binHz;
@@ -170,6 +248,12 @@ export class AudioEngine {
       for (const [name, lo, hi] of BANDS) {
         if (hz >= lo && hz < hi) { bandEnergy[name] += e; break; }
       }
+      if (hz >= 200 && hz < 3400) voiceBandE += e;
+      if (hz >= 250 && hz < 4000) {
+        logMagSum += Math.log(mag + 1e-9);
+        magSum += mag;
+        flatBins++;
+      }
     }
 
     const safe = total || 1e-9;
@@ -180,6 +264,12 @@ export class AudioEngine {
     frac.centroid = centroid;
     frac.energy = total;                // raw spectral energy (for fair gating)
     frac.level = Math.sqrt(total) / 40; // rough loudness proxy
+    frac.voiceBandFrac = voiceBandE / safe; // how speech-banded the frame is
+    // Spectral flatness = geometric/arithmetic mean of magnitude: ~0 tonal
+    // (voice/tom), ~1 noisy (snare/cymbal). A cheap harmonicity proxy.
+    frac.flatness = flatBins
+      ? Math.exp(logMagSum / flatBins) / ((magSum / flatBins) + 1e-12)
+      : 0;
     return frac;
   }
 

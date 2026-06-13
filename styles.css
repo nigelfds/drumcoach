@@ -216,5 +216,15 @@ input[type="number"] { width: 64px; text-align: center; }
 .cal-count { margin-left: auto; color: var(--accent-2); font-variant-numeric: tabular-nums; }
 .sens { flex: 1; gap: 10px; }
 
+/* Voice-rejection segmented control. */
+.voice-row { gap: 14px; }
+.seg { display: inline-flex; background: var(--panel-2); border: 1px solid var(--line); border-radius: 9px; padding: 3px; gap: 3px; }
+.seg-btn {
+  background: transparent; color: var(--muted); border: none; cursor: pointer;
+  padding: 6px 14px; font-size: 0.85rem; border-radius: 6px; transition: all 0.12s;
+}
+.seg-btn:hover { color: var(--text); }
+.seg-btn.active { background: var(--accent-2); color: #06101f; font-weight: 600; }
+
 /* Footer --------------------------------------------------------------- */
 .foot { text-align: center; color: var(--muted); font-size: 0.78rem; padding: 24px; }
