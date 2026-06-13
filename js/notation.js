@@ -8,6 +8,7 @@
 // One step = half the line spacing (i.e. a line or a space). Higher = up.
 // These positions follow common drum-kit notation conventions.
 export const VOICES = {
+  hihat: { label: "Hi-hat", step: 12, head: "x", stem: "up" },
   crash: { label: "Crash", step: 11, head: "x", stem: "up" },
   ride:  { label: "Ride",  step: 10, head: "x", stem: "up" },
   tom1:  { label: "Tom 1", step: 8,  head: "o", stem: "up" },

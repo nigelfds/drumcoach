@@ -28,6 +28,7 @@ const FEATURE_KEYS = ["sub", "low", "lowMid", "mid", "high", "veryHigh", "centro
 // points; calibration replaces these per voice.
 export const DEFAULT_PROFILES = {
   kick:  { sub: 0.45, low: 0.35, lowMid: 0.12, mid: 0.06, high: 0.01, veryHigh: 0.01, centroidN: 0.03, level: 1, decay: 1 },
+  hihat: { sub: 0.01, low: 0.02, lowMid: 0.05, mid: 0.12, high: 0.35, veryHigh: 0.45, centroidN: 0.62, level: 0.4, decay: 0.4 },
   snare: { sub: 0.05, low: 0.08, lowMid: 0.15, mid: 0.35, high: 0.22, veryHigh: 0.15, centroidN: 0.35, level: 1, decay: 1 },
   tom1:  { sub: 0.08, low: 0.18, lowMid: 0.40, mid: 0.25, high: 0.06, veryHigh: 0.03, centroidN: 0.12, level: 1, decay: 1 },
   tom2:  { sub: 0.12, low: 0.30, lowMid: 0.38, mid: 0.15, high: 0.03, veryHigh: 0.02, centroidN: 0.08, level: 1, decay: 1 },
