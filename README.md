@@ -47,25 +47,47 @@ recommended for the best Web Audio support.
 
 ## Hosting (GitHub Pages)
 
-The app is a static client (everything in `public/`), so it's deployed to
-**GitHub Pages** from a `gh-pages` branch that mirrors `public/` — no server, no
-build step.
+The app is a static client (everything in `public/`), so it's hosted on
+**GitHub Pages** from a `gh-pages` branch that mirrors the `public/` folder —
+no server and no build step. The `gh-pages` branch is produced from `public/`
+with `git subtree`, so `public/` stays the single source of truth.
 
-- **Pages source:** repo **Settings → Pages → Build and deployment → Source →
-  Deploy from a branch → `gh-pages` / `(root)`**.
-- **Deploy = just push `main`.** A `pre-push` hook (`.githooks/pre-push`) runs
-  `git subtree push --prefix public origin gh-pages` automatically whenever you
-  push `main` to origin. To deploy by hand instead:
-  `git subtree push --prefix public origin gh-pages`.
-- **One-time per clone:** activate the tracked hooks dir with
-  `git config core.hooksPath .githooks`.
-- Live URL: `https://nigelfds.github.io/drumcoach/`
+Live URL: **`https://nigelfds.github.io/drumcoach/`**
 
-> An older `.github/workflows/deploy-pages.yml` (Actions-based deploy) is still in
-> the repo but is **not used** by this branch-based setup — remove it to avoid two
-> competing deploy mechanisms.
+### One-time setup
 
-Notes:
+1. **Point Pages at the branch** — repo **Settings → Pages → Build and
+   deployment → Source → Deploy from a branch**, then choose **`gh-pages`** and
+   folder **`/ (root)`**.
+2. **Activate the deploy hook** in your local clone (git config isn't stored in
+   the repo, so do this once per clone):
+   ```bash
+   git config core.hooksPath .githooks
+   ```
+3. **Seed the branch** (first deploy):
+   ```bash
+   git subtree push --prefix public origin gh-pages
+   ```
+
+### Deploying
+
+Just push `main` — the tracked `pre-push` hook (`.githooks/pre-push`) runs the
+subtree deploy for you:
+
+```bash
+git push origin main      # → also updates origin/gh-pages from public/
+```
+
+The hook only fires for `main`/`master` pushed to `origin`, doesn't recurse on
+the inner `gh-pages` push, and if the deploy fails it just warns (your `main`
+push still goes through). To deploy manually at any time:
+
+```bash
+git subtree push --prefix public origin gh-pages
+```
+
+### Notes
+
 - The microphone needs a secure context; GitHub Pages is served over **HTTPS**,
   so mic capture works.
 - Kit profiles and patterns are saved in the browser's `localStorage`, so there's
