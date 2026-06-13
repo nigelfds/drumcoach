@@ -4,7 +4,7 @@
   "description": "Browser-based drum practice coach: listens to your mic, classifies hits, notates them, tracks timing, and scores you against patterns.",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "scripts": {
     "start": "node server.js",
