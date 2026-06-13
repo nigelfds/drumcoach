@@ -39,6 +39,31 @@ npm start
 A microphone and a modern Chromium-based browser (Chrome/Edge/Brave) are
 recommended for the best Web Audio support.
 
+> The Node server (`server.js`) is only for local development — it serves the
+> static client over `http://localhost`. In production the app is a fully static
+> site (see Hosting below); it makes no server calls.
+
+---
+
+## Hosting (GitHub Pages)
+
+The app is a static client (everything in `public/`), so it's deployed straight
+to **GitHub Pages** by a GitHub Actions workflow — no server, no build step.
+
+- Workflow: `.github/workflows/deploy-pages.yml` uploads `public/` and deploys
+  it on every push to `main`.
+- **One-time setup:** in the repo, go to **Settings → Pages → Build and
+  deployment → Source** and choose **GitHub Actions**.
+- Live URL: `https://nigelfds.github.io/drumcoach/`
+
+Notes:
+- The microphone needs a secure context; GitHub Pages is served over **HTTPS**,
+  so mic capture works.
+- Kit profiles and patterns are saved in the browser's `localStorage`, so there's
+  nothing to persist server-side.
+- All asset paths are relative, so the app works correctly under the
+  `/drumcoach/` project-page subpath.
+
 ---
 
 ## Project plan
