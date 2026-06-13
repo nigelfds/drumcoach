@@ -110,7 +110,6 @@
     <section class="panel">
       <div class="panel-head">
         <h2>Calibrate &amp; tune</h2>
-        <button id="reset-cal" class="btn btn-small">Reset to defaults</button>
       </div>
       <p class="hint">
         Recognition uses default profiles. To adapt to your kit:
@@ -119,6 +118,16 @@
         <strong>3.</strong> hit that drum a few times,
         <strong>4.</strong> press <em>Stop calibration</em>.
       </p>
+
+      <div class="cal-step">Kit profile</div>
+      <div class="row kit-row">
+        <select id="kit-select" title="Switch between saved kit profiles"></select>
+        <input id="kit-name" type="text" placeholder="Name this kit…" maxlength="40" />
+        <button id="kit-save" class="btn btn-small">Save</button>
+        <button id="kit-delete" class="btn btn-small" disabled>Delete</button>
+        <button id="forget-cal" class="btn btn-small">Forget calibration</button>
+      </div>
+      <div id="kit-status" class="hint">Using default (uncalibrated) profiles.</div>
 
       <div class="cal-step">1 · Pick a drum</div>
       <div class="cal-grid" id="cal-grid"></div>
