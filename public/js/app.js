@@ -86,6 +86,28 @@ $("sens-range").addEventListener("input", (e) => {
   engine.sensitivity = 1 / v;
 });
 
+// Voice-rejection mode (off / moderate / aggressive). Defaults to aggressive.
+const voiceModeEl = $("voice-mode");
+let voicesFiltered = 0;
+const VOICE_HINTS = {
+  off: "Off — every onset is treated as a drum.",
+  moderate: "Moderate — filters sustained, pitched, speech-band sounds (~90 ms delay).",
+  aggressive: "Aggressive — also detects talking and blocks the most voice.",
+};
+function updateVoiceHint(mode) {
+  const base = VOICE_HINTS[mode] ?? "";
+  $("voice-hint").textContent = voicesFiltered ? `${base}  •  ${voicesFiltered} filtered` : base;
+}
+for (const b of voiceModeEl.querySelectorAll(".seg-btn")) {
+  b.addEventListener("click", () => {
+    engine.setVoiceRejection(b.dataset.mode);
+    for (const x of voiceModeEl.querySelectorAll(".seg-btn")) x.classList.toggle("active", x === b);
+    updateVoiceHint(b.dataset.mode);
+  });
+}
+engine.onVoiceReject(() => { voicesFiltered++; updateVoiceHint(engine.voiceRejection); });
+updateVoiceHint(engine.voiceRejection);
+
 // ==========================================================================
 // Metronome
 // ==========================================================================
@@ -237,6 +259,7 @@ function startCalibration() {
 
   state.calibrating = state.calVoice;
   state.calSamples = [];
+  engine.suspendVoiceFilter = true; // capture every drum hit during calibration
 
   calToggle.textContent = "■ Stop calibration";
   calToggle.classList.remove("cal-start");
@@ -265,6 +288,7 @@ function stopCalibration() {
   for (const b of calGrid.children) b.disabled = false;
   $("cal-banner").hidden = true;
   state.calibrating = null;
+  engine.suspendVoiceFilter = false;
 
   if (n === 0) {
     $("cal-status").textContent =

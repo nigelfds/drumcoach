@@ -102,6 +102,22 @@ Commits are made as items are ticked off.
 | Ride | high-band energy, longer decay, lower level |
 | Crash | very-high broadband energy, loud, long decay |
 
+### Voice rejection
+
+Microphones pick up talking and singing, which can fire false hits. The
+**Voice rejection** selector (in the Calibrate & tune panel) filters these out
+without touching drum detection:
+
+| Mode | What it does |
+| ---- | ------------ |
+| **Off** | Pipeline unchanged — every onset is treated as a drum |
+| **Moderate** | A 3-test gate: rejects an onset only when it is **sustained** (doesn't decay) **and** **harmonic** (low spectral flatness) **and** **speech-banded** (200–3400 Hz). All three are needed, so kick (wrong band), snare/cymbals (too noisy), and toms (decay too fast) are always kept |
+| **Aggressive** *(default)* | The 3-test gate **plus** a voice-activity detector that also blocks pitched, speech-banded onsets struck while you're mid-talking |
+
+The gate watches ~80 ms of decay before deciding, so a filtered-or-not note
+appears ~90 ms later — but hits are timestamped at the **true onset**, so BPM,
+drift, and scoring stay exact. Calibration bypasses the gate entirely.
+
 ---
 
 ## Timing & scoring
