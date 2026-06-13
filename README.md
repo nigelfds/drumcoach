@@ -9,6 +9,7 @@ electronic kit near your microphone and DrumCoach will:
 - **Measure your timing** — live BPM, steadiness, and how far you are drifting
 - **Metronome** with visual + audible click so you can lock to a tempo
 - **Score your accuracy** against a pattern you annotate on a 4 / 8 / 16-bar sheet
+- **Play your pattern back** through a built-in drum synth, with an optional loop
 
 Inspired by [Tone.js' step sequencer](https://github.com/Tonejs/Tone.js/blob/main/examples/stepSequencer.html)
 and [Chrome Music Lab: Rhythm](https://musiclab.chromeexperiments.com/Rhythm/).
@@ -52,7 +53,8 @@ The app is split into focused modules so each can be built and committed on its 
 | Timing | `public/js/timing.js` | BPM estimation + drift / steadiness analysis |
 | Metronome | `public/js/metronome.js` | Scheduled click + visual beat indicator |
 | Sequencer | `public/js/sequencer.js` | Annotate a 4/8/16-bar pattern, score the player |
-| Drum synth | `public/js/drum-synth.js` | Web Audio drum-voice synth for the per-row sample previews |
+| Drum synth | `public/js/drum-synth.js` | Web Audio drum-voice synth for sample previews + pattern playback |
+| Pattern player | `public/js/pattern-player.js` | Lookahead scheduler that plays the pattern (looping optional) |
 | Kit profiles | `public/js/profiles-store.js` | Persist named calibration profiles to localStorage |
 | App | `public/js/app.js` | Wires modules together and owns UI state |
 
