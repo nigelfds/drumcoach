@@ -97,6 +97,53 @@ git subtree push --prefix public origin gh-pages
 
 ---
 
+## Cross-device sync (optional · Firebase)
+
+By default DrumCoach stores kit profiles and patterns only in the browser's
+`localStorage`. You can optionally enable **cross-device sync** backed by
+Firebase. It's off until configured — the app works exactly the same without it.
+
+How it behaves:
+- On load you're signed in **anonymously**, so your kits/patterns back up to the
+  cloud immediately — no login wall.
+- The **☁ Sync across devices** button (top right) links that anonymous account
+  to **Google** (one click). The same uid is kept, so your data carries over.
+- On another device, click the button and sign in with the same Google account →
+  the same kits/patterns appear.
+- If that Google account was already used on another device, signing in **merges**
+  this device's local data into the account (union by id, newest wins) — nothing
+  is lost. `localStorage` stays the offline cache; only the data maps sync (your
+  current selection stays per-device).
+
+### Setup
+
+1. Create a project at <https://console.firebase.google.com> and add a **Web app**.
+2. **Authentication → Sign-in method:** enable **Anonymous** and **Google**.
+3. **Authentication → Settings → Authorized domains:** add your Pages domain
+   (e.g. `nigelfds.github.io`) so the Google popup works in production.
+4. **Firestore Database:** create one (production mode) and set these rules so each
+   user can only touch their own document:
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /users/{uid} {
+         allow read, write: if request.auth != null && request.auth.uid == uid;
+       }
+     }
+   }
+   ```
+5. Paste your web config into `public/js/firebase-config.js`
+   (`apiKey`, `authDomain`, `projectId`, `appId`). The `apiKey` is **not a secret**
+   — Firebase web config is public; security comes from the rules above.
+
+Implementation: `public/js/cloud-sync.js` (loads the Firebase SDK from the CDN
+only when configured) syncs `users/{uid}` ↔ the `ProfileStore`/`PatternStore`
+maps. Known v1 limitations: simultaneous edits on two devices are last-write-wins,
+and a delete can reappear if a long-offline device re-syncs stale data.
+
+---
+
 ## Project plan
 
 The app is split into focused modules so each can be built and committed on its own:
@@ -141,6 +188,7 @@ Commits are made as items are ticked off.
 - [x] **T9a** — Persist named calibration **kit profiles** to localStorage (save / switch / delete / forget)
 - [x] **T9b** — Play the pattern through a built-in **drum synth**, with an optional loop
 - [x] **T9c** — Persist named **patterns per kit** to localStorage (save / load / delete, auto-restore)
+- [x] **T9d** — Optional **cross-device sync** (Firebase anonymous auth → Google link, merge on conflict)
 - [ ] **T9** — Stretch: export MIDI, latency calibration wizard
 
 ---

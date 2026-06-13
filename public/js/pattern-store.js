@@ -16,7 +16,17 @@ export class PatternStore {
   constructor(key = KEY) {
     this.key = key;
     this._data = this._load();
+    this._onChange = null;
   }
+
+  /** Notified after every persist — used by cloud sync to push changes. */
+  onChange(fn) { this._onChange = fn; return this; }
+
+  /** The raw id→pattern map (for cloud sync). */
+  records() { return this._data.patterns; }
+
+  /** Replace the pattern map (used when applying cloud data). */
+  setRecords(map) { this._data.patterns = map || {}; this._persist(); }
 
   _load() {
     try {
@@ -35,6 +45,7 @@ export class PatternStore {
     } catch (e) {
       console.warn("DrumCoach: could not save patterns", e);
     }
+    if (this._onChange) this._onChange();
   }
 
   /** Saved patterns for a given kit (newest first). */

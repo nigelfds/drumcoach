@@ -49,6 +49,8 @@ h2 { font-size: 0.95rem; letter-spacing: 0.02em; color: var(--muted); text-trans
 .brand { display: flex; flex-direction: column; gap: 2px; }
 .tagline { margin: 0; font-size: 0.78rem; color: var(--muted); }
 .topbar-controls { display: flex; align-items: center; gap: 14px; }
+.btn-sync { font-size: 0.85rem; white-space: nowrap; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.btn-sync[hidden] { display: none; }
 
 .meter {
   width: 120px; height: 10px; border-radius: 6px;

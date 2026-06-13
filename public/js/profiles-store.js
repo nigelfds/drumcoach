@@ -14,7 +14,17 @@ export class ProfileStore {
   constructor(key = KEY) {
     this.key = key;
     this._data = this._load();
+    this._onChange = null;
   }
+
+  /** Notified after every persist — used by cloud sync to push changes. */
+  onChange(fn) { this._onChange = fn; return this; }
+
+  /** The raw id→kit map (for cloud sync). */
+  records() { return this._data.kits; }
+
+  /** Replace the kit map (used when applying cloud data). */
+  setRecords(map) { this._data.kits = map || {}; this._persist(); }
 
   _load() {
     try {
@@ -33,6 +43,7 @@ export class ProfileStore {
     } catch (e) {
       console.warn("DrumCoach: could not save kits", e);
     }
+    if (this._onChange) this._onChange();
   }
 
   /** Saved kits, newest first. */
