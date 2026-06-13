@@ -36,6 +36,34 @@ const VOICE_LABEL = Object.fromEntries(
   Object.entries(VOICES).map(([k, v]) => [k, v.label])
 );
 
+// Little icons shaped like each drum type, shown next to the names in the
+// Pattern grid (clicking still previews the sound). currentColor lets CSS
+// drive the colour. viewBox 16×16.
+const SVG = (body) =>
+  `<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" ` +
+  `fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round">${body}</svg>`;
+
+const DRUM_ICONS = {
+  // Bass drum, front view: ring + beater spot.
+  kick: SVG(`<circle cx="8" cy="8" r="6" stroke-width="1.3"/><circle cx="8" cy="8" r="2.1" fill="currentColor" stroke="none"/>`),
+  // Snare: shallow drum cylinder + snare wire underneath.
+  snare: SVG(`<rect x="2.5" y="5" width="11" height="5.5" rx="1.6"/><ellipse cx="8" cy="5" rx="5.5" ry="1.8"/><path d="M4 12h8" stroke-width="0.9"/>`),
+  // Tom: deeper drum cylinder.
+  tom: SVG(`<rect x="3" y="3.8" width="10" height="8.2" rx="1.6"/><ellipse cx="8" cy="3.8" rx="5" ry="1.7"/>`),
+  // Hi-hat: two cymbals on a rod.
+  hihat: SVG(`<ellipse cx="8" cy="6" rx="6" ry="1.3"/><ellipse cx="8" cy="8.7" rx="6" ry="1.3"/><path d="M8 2.5v11" stroke-width="1"/>`),
+  // Cymbal (ride / crash): disc with a bell, on a stand.
+  cymbal: SVG(`<ellipse cx="8" cy="5" rx="6.5" ry="1.6"/><circle cx="8" cy="5" r="0.7" fill="currentColor" stroke="none"/><path d="M8 5.4v8.6"/>`),
+};
+
+function drumIconSvg(voice) {
+  if (voice === "kick") return DRUM_ICONS.kick;
+  if (voice === "snare") return DRUM_ICONS.snare;
+  if (voice.startsWith("tom")) return DRUM_ICONS.tom;
+  if (voice === "hihat") return DRUM_ICONS.hihat;
+  return DRUM_ICONS.cymbal; // ride, crash
+}
+
 // ==========================================================================
 // Microphone / audio engine
 // ==========================================================================
@@ -187,11 +215,7 @@ function buildSequencer() {
     play.className = "seq-play";
     play.title = `Play ${VOICE_LABEL[voice]} sample`;
     play.setAttribute("aria-label", `Play ${VOICE_LABEL[voice]} sample`);
-    play.innerHTML =
-      `<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">` +
-      `<path fill="currentColor" d="M2.5 6h2.2L8 3.3v9.4L4.7 10H2.5z"/>` +
-      `<path fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" ` +
-      `d="M10.5 5.6a3.2 3.2 0 0 1 0 4.8"/></svg>`;
+    play.innerHTML = drumIconSvg(voice);
     play.addEventListener("click", () => {
       synth.play(voice);
       play.classList.add("playing");
