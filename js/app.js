@@ -21,7 +21,7 @@ const seq = new PatternSequencer();
 const kits = new ProfileStore();
 const patterns = new PatternStore();
 const synth = new DrumSynth();
-const player = new PatternPlayer(synth, seq, () => metro.bpm);
+const player = new PatternPlayer(synth, seq, 100);
 
 // --- UI state --------------------------------------------------------------
 const state = {
@@ -225,6 +225,14 @@ function buildSequencer() {
     row.appendChild(cells);
     seqEl.appendChild(row);
   }
+
+  const meta = $("pattern-meta");
+  if (meta) {
+    const perBar = seq.stepsPerBar;
+    meta.textContent =
+      `${seq.bars} bar${seq.bars === 1 ? "" : "s"} · ${perBar} slots/bar · ` +
+      `${seq.totalSteps} slots total — scroll sideways to see them all`;
+  }
 }
 
 $("bars-select").addEventListener("change", (e) => {
@@ -268,6 +276,12 @@ $("pattern-play").addEventListener("click", () => {
 });
 
 $("pattern-loop").addEventListener("change", (e) => { player.loop = e.target.checked; });
+
+$("pattern-bpm").addEventListener("change", (e) => {
+  const v = Math.max(30, Math.min(300, Math.round(+e.target.value) || 100));
+  player.bpm = v;
+  e.target.value = v;
+});
 
 // --- Saved patterns (per kit, localStorage) --------------------------------
 function activeKitLabel() {

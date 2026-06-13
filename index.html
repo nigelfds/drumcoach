@@ -93,9 +93,14 @@
           <label class="loop-toggle">
             <input type="checkbox" id="pattern-loop" checked /> Loop
           </label>
+          <label class="tempo-control">♩
+            <input id="pattern-bpm" type="number" min="30" max="300" value="100" /> BPM
+          </label>
           <label>Bars
             <select id="bars-select">
-              <option>4</option><option>8</option><option>16</option>
+              <option value="1">1</option><option value="2">2</option>
+              <option value="4" selected>4</option><option value="8">8</option>
+              <option value="16">16</option>
             </select>
           </label>
           <button id="practice-btn" class="btn">🎯 Practice off</button>
@@ -105,6 +110,7 @@
       <div class="seq-scroll">
         <div id="sequencer" class="sequencer"></div>
       </div>
+      <div id="pattern-meta" class="seq-meta"></div>
 
       <div class="row pattern-store-row">
         <label class="kit-field">Saved pattern
