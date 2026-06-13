@@ -9,10 +9,22 @@
 // in client code. Access is protected by Firestore security rules + the auth
 // provider, not by hiding this key.
 export const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",        // usually <project-id>.firebaseapp.com
-  projectId: "",
-  appId: "",
+
+  apiKey: "AIzaSyDXw6LXjQua5HuP2sDYF7dHs9ZzWYjzoPY",
+
+  authDomain: "drumcoach-9c1bb.firebaseapp.com",
+
+  projectId: "drumcoach-9c1bb",
+
+  storageBucket: "drumcoach-9c1bb.firebasestorage.app",
+
+  messagingSenderId: "1064850813962",
+
+  appId: "1:1064850813962:web:54c032c0a976fe44e69bf3",
+
+  measurementId: "G-ZLPZN1QSDB"
+
 };
+
 
 export const syncEnabled = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
