@@ -18,12 +18,21 @@ export class DrumSynth {
   // The audio context (created/resumed on demand). Call from a user gesture.
   context() { return this._ensure(); }
 
-  // Lazily create / resume the context. Always call from a user gesture.
+  // Lazily create / resume the context + a master bus. All voices route through
+  // the bus, which feeds the speakers — and can also be tapped (connectTap) for
+  // a loopback stream used by the recognition self-test / e2e tests.
   _ensure() {
     if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (this.ctx.state === "suspended") this.ctx.resume();
+    if (!this._bus || this._bus.context !== this.ctx) {
+      this._bus = this.ctx.createGain();
+      this._bus.connect(this.ctx.destination);
+    }
     return this.ctx;
   }
+
+  /** Also send the synth output to another node (e.g. a MediaStreamDestination). */
+  connectTap(node) { this._ensure(); this._bus.connect(node); return this; }
 
   // Play immediately (e.g. the per-row preview button).
   play(voice) {
@@ -36,7 +45,7 @@ export class DrumSynth {
     const ctx = this._ensure();
     const out = ctx.createGain();
     out.gain.value = 0.9;
-    out.connect(ctx.destination);
+    out.connect(this._bus);
 
     switch (voice) {
       case "kick":  this._kick(ctx, t, out); break;
