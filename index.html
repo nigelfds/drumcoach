@@ -175,9 +175,9 @@
         <p class="sub-p" id="kit-status" style="margin-top:8px">Using default (uncalibrated) profiles.</p>
 
         <div class="sub-h" style="margin-top:18px">Hit detection</div>
-        <p class="sub-p">Sensitivity — lower if quiet hits are missed, higher if it picks up too much.</p>
-        <input type="range" id="sens-range" min="0.4" max="2.5" step="0.05" value="1" style="width:100%" />
-        <div class="rangelabels"><span>Catch quiet hits</span><span>Ignore noise</span></div>
+        <p class="sub-p">Sensitivity — drag left if it picks up too much (only loud, clear hits); right if real hits are missed.</p>
+        <input type="range" id="sens-range" min="0" max="100" step="1" value="30" style="width:100%" />
+        <div class="rangelabels"><span>Only loud hits</span><span>Catch quiet taps</span></div>
 
         <p class="sub-p" style="margin-top:16px">Ignore talking &amp; background noise</p>
         <div class="seg" id="voice-mode">

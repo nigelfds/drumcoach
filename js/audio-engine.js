@@ -52,7 +52,9 @@ export class AudioEngine {
     this._fluxHistory = [];
     this._lastOnsetAt = 0;
     this._minOnsetGap = 0.06;        // seconds debounce between hits
-    this.sensitivity = 1.0;          // user-adjustable multiplier (lower = more sensitive)
+    this._fluxK = 2.0;               // flux must be this many std above the mean
+    this._floorMult = 3.5;           // hit energy must exceed this × the ambient floor
+    this.setSensitivity(0.3);        // default: lean toward only loud, clear hits
     this._energyFloor = null;        // per-signal ambient floor, for fair gating
 
     // Voice rejection: "off" | "moderate" | "aggressive". The gate sits between
@@ -77,6 +79,19 @@ export class AudioEngine {
   onLevel(fn) { this._onLevel = fn; return this; }
   onFeatures(fn) { this._onFeatures = fn; return this; }
   onVoiceReject(fn) { this._onVoiceReject = fn; return this; }
+
+  /**
+   * Detection sensitivity. t in [0,1]:
+   *   0 = only loud, clear, sharp hits (ignores soft taps + background)
+   *   1 = very sensitive (also catches quiet taps)
+   * Drives both the flux threshold (how sharp the transient must be) and the
+   * energy-floor gate (how far above the ambient floor a hit must be).
+   */
+  setSensitivity(t) {
+    t = Math.max(0, Math.min(1, t));
+    this._fluxK = 3.6 - 2.4 * t;     // 3.6 (strict) → 1.2 (loose)
+    this._floorMult = 9 - 5.5 * t;   // 9× (strict) → 3.5× (loose)
+  }
 
   setVoiceRejection(mode) {
     if (["off", "moderate", "aggressive"].includes(mode)) this.voiceRejection = mode;
@@ -300,7 +315,7 @@ export class AudioEngine {
     const mean = this._fluxHistory.reduce((a, b) => a + b, 0) / this._fluxHistory.length;
     const variance = this._fluxHistory.reduce((a, b) => a + (b - mean) ** 2, 0) / this._fluxHistory.length;
     const std = Math.sqrt(variance);
-    const threshold = (mean + 2.0 * std) * this.sensitivity + 0.0004;
+    const threshold = mean + this._fluxK * std + 0.0006;
 
     // Per-signal relative energy floor. It rises slowly and drops instantly, so
     // it tracks the ambient / decay floor of whatever you're playing. A hit then
@@ -311,7 +326,7 @@ export class AudioEngine {
     this._energyFloor = this._energyFloor == null
       ? e
       : Math.min(e, this._energyFloor * 1.06 + 1e-8);
-    const aboveFloor = e > this._energyFloor * 3.5 && e > 2e-6;
+    const aboveFloor = e > this._energyFloor * this._floorMult && e > 2e-6;
 
     const debounced = t - this._lastOnsetAt > this._minOnsetGap;
     return flux > threshold && aboveFloor && debounced;

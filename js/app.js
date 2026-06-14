@@ -500,7 +500,8 @@ $("forget-cal").addEventListener("click", () => {
 // ===========================================================================
 // SETTINGS — detection
 // ===========================================================================
-$("sens-range").addEventListener("input", (e) => { engine.sensitivity = 1 / +e.target.value; });
+// Slider 0..100, left = strict (only loud hits), right = sensitive.
+$("sens-range").addEventListener("input", (e) => { engine.setSensitivity(+e.target.value / 100); });
 $("voice-mode").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   $("voice-mode").querySelectorAll("button").forEach((x) => x.classList.remove("sel"));
