@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DrumCoach — redesign sketch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#F4F6F2;        /* cool soft paper, not cream */
+    --card:#FFFFFF;
+    --ink:#15252A;          /* deep teal-charcoal */
+    --muted:#71807C;
+    --line:#E2E7E1;
+    --beat:#FF5A36;         /* metronome pulse / play — the signature accent */
+    --beat-soft:#FFE7DF;
+    --good:#2E8B72;         /* steady / in-time feedback */
+    --good-soft:#E2F1EB;
+    --warn:#C8881F;
+    --radius:18px;
+    --shadow:0 1px 0 rgba(21,37,42,.04), 0 12px 30px -18px rgba(21,37,42,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:"Inter",system-ui,sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(120% 90% at 80% -10%, #EBF0EA 0%, transparent 55%),
+      radial-gradient(100% 80% at 0% 110%, #FCEAE3 0%, transparent 50%),
+      #E7ECE6;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:14px;
+    padding:26px 14px 48px;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .note{
+    max-width:430px;width:100%;
+    font-size:12.5px;color:#52615c;line-height:1.5;
+    text-align:center;
+  }
+  .note b{color:var(--ink)}
+
+  /* device frame */
+  .device{
+    position:relative;
+    width:100%;max-width:430px;
+    background:var(--paper);
+    border-radius:34px;
+    border:1px solid rgba(21,37,42,.10);
+    box-shadow:var(--shadow);
+    overflow:hidden;
+    min-height:780px;
+  }
+  .app{
+    height:780px;
+    overflow-y:auto;
+    padding:18px 16px 26px;
+    scroll-behavior:smooth;
+  }
+  .app::-webkit-scrollbar{width:0}
+
+  /* header */
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px}
+  .brand{display:flex;align-items:center;gap:9px}
+  .brand .logo{font-size:26px;line-height:1}
+  .brand h1{
+    font-family:"Bricolage Grotesque",sans-serif;
+    font-weight:800;font-size:22px;margin:0;letter-spacing:-.01em;
+  }
+  .brand p{margin:1px 0 0;font-size:11.5px;color:var(--muted)}
+  .replay{
+    border:1px solid var(--line);background:var(--card);
+    color:var(--muted);font-size:11px;font-weight:600;
+    padding:7px 10px;border-radius:999px;cursor:pointer;white-space:nowrap;
+  }
+  .replay:hover{color:var(--ink);border-color:#cdd6cf}
+
+  /* mic bar */
+  .mic{
+    margin-top:14px;
+    background:var(--ink);color:#EAF1EE;border-radius:var(--radius);
+    padding:14px 15px;display:flex;flex-direction:column;gap:10px;
+  }
+  .mic.on{background:linear-gradient(180deg,#1d3a33,#163029)}
+  .mic .row{display:flex;align-items:center;gap:11px}
+  .mic .dot{width:9px;height:9px;border-radius:50%;background:#FF5A36;box-shadow:0 0 0 4px rgba(255,90,54,.22)}
+  .mic.on .dot{background:#56E0A6;box-shadow:0 0 0 4px rgba(86,224,166,.2);animation:pulse 1.6s infinite}
+  .mic .label{font-weight:600;font-size:14px}
+  .mic .sub{font-size:11.5px;color:#A9C0B8;line-height:1.5}
+  .mic button{
+    margin-left:auto;border:0;cursor:pointer;
+    background:#FF5A36;color:#fff;font-weight:700;font-size:13px;
+    padding:9px 14px;border-radius:11px;font-family:inherit;
+  }
+  .mic.on button{background:rgba(255,255,255,.12);color:#CFE6DD}
+
+  /* sections */
+  .card{
+    background:var(--card);border:1px solid var(--line);
+    border-radius:var(--radius);padding:16px 15px;margin-top:14px;
+  }
+  .eyebrow{display:flex;align-items:center;gap:9px;margin-bottom:3px}
+  .step{
+    font-family:"JetBrains Mono",monospace;font-weight:700;font-size:11px;
+    color:var(--beat);background:var(--beat-soft);
+    width:22px;height:22px;border-radius:7px;display:grid;place-items:center;flex:none;
+  }
+  .card h2{font-family:"Bricolage Grotesque",sans-serif;font-weight:700;font-size:16.5px;margin:0;letter-spacing:-.01em}
+  .card .hint{font-size:12px;color:var(--muted);margin:5px 0 0;line-height:1.5}
+
+  /* metronome */
+  .tempo{display:flex;align-items:center;justify-content:center;gap:18px;margin:16px 0 6px}
+  .tempo .num{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:52px;line-height:.9;letter-spacing:-.02em}
+  .tempo .unit{font-size:11px;color:var(--muted);font-family:"JetBrains Mono",monospace;display:block;text-align:center;margin-top:6px}
+  .stepper{width:46px;height:46px;border-radius:14px;border:1px solid var(--line);background:var(--paper);font-size:24px;color:var(--ink);cursor:pointer;font-family:inherit}
+  .stepper:active{background:#eef2ec}
+  .beats{display:flex;gap:10px;justify-content:center;margin:14px 0 4px}
+  .beats .b{width:13px;height:13px;border-radius:50%;background:#DCE4DD;transition:transform .08s,background .08s}
+  .beats .b.lead{background:#c3cec5}
+  .beats .b.active{background:var(--beat);transform:scale(1.45)}
+  .controls{display:flex;gap:8px;margin-top:14px}
+  .play{flex:1;border:0;cursor:pointer;background:var(--beat);color:#fff;font-weight:700;font-size:14px;padding:12px;border-radius:13px;font-family:inherit}
+  .play.playing{background:var(--ink)}
+  .field{flex:1}
+  .field label{font-size:11px;color:var(--muted);display:block;margin-bottom:5px;font-weight:500}
+  .field select,.field input[type=range]{width:100%}
+  select{font-family:inherit;font-size:13px;padding:9px;border-radius:11px;border:1px solid var(--line);background:var(--paper);color:var(--ink)}
+  .twocol{display:flex;gap:12px;margin-top:14px}
+
+  /* timing feedback */
+  .metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+  .metric{background:var(--paper);border-radius:13px;padding:12px 12px 11px}
+  .metric .k{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;font-weight:500}
+  .metric .v{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:24px;margin-top:6px;color:#b9c3bc}
+  .metric.live .v{color:var(--ink)}
+  .metric .v small{font-size:12px;color:var(--muted);font-weight:500}
+  .empty{
+    margin-top:14px;border:1.5px dashed #d3dcd4;border-radius:14px;
+    padding:18px 16px;text-align:center;color:var(--muted);font-size:12.5px;line-height:1.55;background:var(--paper);
+  }
+  .empty b{color:var(--ink)}
+
+  /* info button + tooltip */
+  .info{
+    width:15px;height:15px;border-radius:50%;border:1px solid #c3cec5;color:var(--muted);
+    font-size:10px;font-weight:700;display:inline-grid;place-items:center;cursor:pointer;
+    font-family:"JetBrains Mono",monospace;background:none;padding:0;
+  }
+  .info:hover{border-color:var(--ink);color:var(--ink)}
+  .tip{
+    display:none;position:relative;
+    background:var(--ink);color:#E7F0EC;font-size:11.5px;line-height:1.5;
+    padding:9px 11px;border-radius:10px;margin-top:9px;
+  }
+  .tip.show{display:block;animation:fade .14s ease}
+
+  /* practice toggle */
+  .toggle-row{display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .toggle-row .txt{flex:1}
+  .toggle-row .txt .t{font-weight:600;font-size:13.5px}
+  .toggle-row .txt .s{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .switch{width:46px;height:27px;border-radius:999px;background:#d7e0d8;position:relative;cursor:pointer;border:0;flex:none;transition:background .15s}
+  .switch::after{content:"";position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .15s}
+  .switch.on{background:var(--good)}
+  .switch.on::after{left:22px}
+
+  /* pattern editor */
+  .pe-bar{display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}
+  .sub-seg{flex:1;min-width:190px}
+  .sub-seg button{font-size:11.5px;padding:8px 4px}
+  .pe-right{display:flex;align-items:center;gap:10px;margin-left:auto}
+  .pe-right label{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;font-weight:500}
+  .pe-right select{padding:7px 8px;font-size:12px}
+  .pe-clear{padding:8px 12px;font-size:12px}
+  .grid-scroll{overflow-x:auto;margin-top:13px;padding-bottom:4px}
+  .grid-scroll::-webkit-scrollbar{height:6px}
+  .grid-scroll::-webkit-scrollbar-thumb{background:#d3dcd4;border-radius:9px}
+  .grid{display:inline-grid;gap:6px}
+  .grow{display:grid;grid-auto-flow:column;gap:5px;align-items:center}
+  .vlabel{width:64px;flex:none;font-size:11.5px;font-weight:600;display:flex;align-items:center;gap:7px;padding-right:6px}
+  .vdot{width:10px;height:10px;border-radius:50%;flex:none}
+  .cell{
+    width:26px;height:26px;border-radius:8px;border:1px solid var(--line);
+    background:var(--paper);cursor:pointer;padding:0;position:relative;transition:transform .05s;
+  }
+  .cell.beat{border-color:#cdd6cf;background:#eef2ec}
+  .cell.on{border-color:transparent;transform:scale(1)}
+  .cell.on::after{content:"";position:absolute;inset:3px;border-radius:5px;background:var(--vc,#15252A)}
+  .cell.ph{box-shadow:0 0 0 2px var(--beat)}
+  /* count row */
+  .countrow .cell{height:18px;cursor:default;background:transparent;border:0;display:grid;place-items:center;font-family:"JetBrains Mono",monospace;font-size:10px;color:#b6c0b8}
+  .countrow .cell.beatnum{color:var(--ink);font-weight:700}
+  .countrow .cell.ph{box-shadow:none}
+  .countrow .cell.ph::before{content:"";position:absolute;bottom:-2px;left:50%;transform:translateX(-50%);width:7px;height:7px;border-radius:50%;background:var(--beat)}
+  .pe-tip{font-size:11px;color:var(--muted);margin:9px 0 0}
+  .btn-ghost.on-ghost{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  /* save / delete */
+  .saverow{display:flex;gap:8px;margin-top:14px}
+  .saverow input{flex:1;font-family:inherit;font-size:13px;padding:10px;border-radius:11px;border:1px solid var(--line);background:var(--paper);color:var(--ink)}
+  .saverow input::placeholder{color:#a7b3ac}
+  .btn-ghost{border:1px solid var(--line);background:var(--card);color:var(--ink);font-weight:600;font-size:13px;padding:10px 14px;border-radius:11px;cursor:pointer;font-family:inherit}
+  .btn-ghost:hover{border-color:#cdd6cf}
+  .btn-danger{border:1px solid #f0c9bf;background:#fff;color:#c0432a;font-weight:600;font-size:13px;padding:10px 14px;border-radius:11px;cursor:pointer;font-family:inherit}
+  .btn-danger.armed{background:#c0432a;color:#fff;border-color:#c0432a}
+
+  /* disclosure (settings) */
+  details.disc{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  details.disc>summary{list-style:none;cursor:pointer;padding:15px;display:flex;align-items:center;gap:9px;font-family:"Bricolage Grotesque",sans-serif;font-weight:700;font-size:15px}
+  details.disc>summary::-webkit-details-marker{display:none}
+  details.disc>summary .chev{margin-left:auto;color:var(--muted);transition:transform .15s}
+  details.disc[open]>summary .chev{transform:rotate(90deg)}
+  .disc-body{padding:0 15px 16px}
+  .sub-h{font-weight:600;font-size:13px;margin:8px 0 4px}
+  .sub-p{font-size:11.5px;color:var(--muted);line-height:1.5;margin:0 0 10px}
+  .seg{display:flex;border:1px solid var(--line);border-radius:11px;overflow:hidden;margin-top:6px}
+  .seg button{flex:1;border:0;background:var(--card);padding:9px;font-size:12px;font-family:inherit;color:var(--muted);cursor:pointer;border-right:1px solid var(--line)}
+  .seg button:last-child{border-right:0}
+  .seg button.sel{background:var(--ink);color:#fff;font-weight:600}
+  .rangelabels{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-top:5px}
+
+  footer{text-align:center;font-size:11.5px;color:var(--muted);margin-top:20px;padding-bottom:6px}
+  footer .heart{color:var(--beat)}
+
+  /* onboarding overlay */
+  .overlay{position:absolute;inset:0;background:rgba(15,28,25,.55);backdrop-filter:blur(3px);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+  .overlay[hidden]{display:none}
+  .sheet{
+    background:var(--paper);width:100%;border-radius:26px 26px 34px 34px;
+    padding:22px 20px 20px;animation:rise .28s cubic-bezier(.2,.8,.2,1);
+  }
+  .sheet .grip{width:38px;height:4px;border-radius:9px;background:#cdd6cf;margin:0 auto 14px}
+  .dots{display:flex;gap:6px;justify-content:center;margin-bottom:16px}
+  .dots i{width:7px;height:7px;border-radius:50%;background:#cdd6cf}
+  .dots i.on{background:var(--beat);width:20px;border-radius:9px}
+  .ob-icon{font-size:34px;text-align:center}
+  .ob h3{font-family:"Bricolage Grotesque",sans-serif;font-weight:800;font-size:20px;text-align:center;margin:10px 0 0;letter-spacing:-.01em}
+  .ob p{font-size:13.5px;color:#4a5852;line-height:1.55;text-align:center;margin:9px 4px 0}
+  .ob .tag{display:inline-block;font-size:10.5px;font-weight:700;color:var(--good);background:var(--good-soft);padding:3px 9px;border-radius:999px;margin:12px auto 0}
+  .ob-actions{display:flex;gap:9px;margin-top:18px}
+  .ob-actions button{flex:1;border:0;cursor:pointer;font-family:inherit;font-weight:700;font-size:14px;padding:13px;border-radius:13px}
+  .primary{background:var(--beat);color:#fff}
+  .ghost{background:transparent;color:var(--muted);border:1px solid var(--line)!important}
+  .center{text-align:center}
+  .ob-foot{text-align:center;font-size:11px;color:var(--muted);margin-top:14px}
+
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  @keyframes fade{from{opacity:0;transform:translateY(-3px)}to{opacity:1}}
+  @keyframes rise{from{transform:translateY(40px);opacity:.4}to{transform:translateY(0);opacity:1}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+  <p class="note"><b>DrumCoach — redesign sketch.</b> A clickable wireframe of the reworked flow &amp; copy. Tap <b>Turn on mic</b>, the <b>ⓘ</b> glosses, the metronome <b>play</b>, the practice switch, and <b>Replay intro</b> to walk the onboarding.</p>
+
+  <div class="device">
+    <div class="app" id="app">
+
+      <header class="top">
+        <div class="brand">
+          <span class="logo">🥁</span>
+          <div>
+            <h1>DrumCoach</h1>
+            <p>Find your timing. Keep the beat.</p>
+          </div>
+        </div>
+        <button class="replay" onclick="openOB()">↺ Replay intro</button>
+      </header>
+
+      <!-- MIC -->
+      <div class="mic" id="micBar">
+        <div class="row">
+          <span class="dot"></span>
+          <span class="label" id="micLabel">Mic is off</span>
+          <button onclick="toggleMic()" id="micBtn">Turn on mic</button>
+        </div>
+        <p class="sub" id="micSub">DrumCoach hears your drums through this device. Everything runs on your device — nothing is recorded or sent anywhere.</p>
+      </div>
+
+      <!-- STEP 1: BEAT (metronome) -->
+      <section class="card">
+        <div class="eyebrow"><span class="step">1</span><h2>Set your beat</h2></div>
+        <p class="hint">Pick a tempo and start the click. Slower is easier to stay with.</p>
+
+        <div class="tempo">
+          <button class="stepper" onclick="bpm(-2)">−</button>
+          <div class="center">
+            <span class="num" id="bpmNum">88</span>
+            <span class="unit">BPM</span>
+          </div>
+          <button class="stepper" onclick="bpm(2)">+</button>
+        </div>
+
+        <div class="beats" id="beats"></div>
+
+        <div class="controls">
+          <button class="play" id="playBtn" onclick="togglePlay()">▶ Start the beat</button>
+        </div>
+
+        <div class="twocol">
+          <div class="field">
+            <label>Beats per bar</label>
+            <select id="bpb" onchange="buildBeats();buildGrid(true)">
+              <option>2</option><option>3</option><option selected>4</option>
+              <option>6</option><option>8</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Click volume</label>
+            <input type="range" min="0" max="100" value="70" />
+          </div>
+        </div>
+      </section>
+
+      <!-- STEP 2: TIMING FEEDBACK -->
+      <section class="card">
+        <div class="eyebrow"><span class="step">2</span><h2>Play along</h2></div>
+        <p class="hint">Start the beat above and play. Your timing shows up here, live.</p>
+
+        <div class="empty" id="emptyState">
+          Nothing yet — <b>start the beat</b> and play a few bars.<br />
+          Your tempo, drift and tightness will appear here.
+        </div>
+
+        <div class="metrics" id="metrics" hidden>
+          <div class="metric live">
+            <span class="k">Your tempo
+              <button class="info" onclick="tip('t1')">i</button></span>
+            <span class="v">88 <small>BPM</small></span>
+          </div>
+          <div class="metric live">
+            <span class="k">In time
+              <button class="info" onclick="tip('t2')">i</button></span>
+            <span class="v" style="color:var(--good)">Steady</span>
+          </div>
+          <div class="metric live">
+            <span class="k">Drift
+              <button class="info" onclick="tip('t3')">i</button></span>
+            <span class="v">+1 <small>BPM</small></span>
+          </div>
+          <div class="metric live">
+            <span class="k">Tightness
+              <button class="info" onclick="tip('t4')">i</button></span>
+            <span class="v">18 <small>ms</small></span>
+          </div>
+        </div>
+        <div class="tip" id="t1">Your tempo: how fast you're actually playing, in beats per minute.</div>
+        <div class="tip" id="t2">In time: how consistent your timing is overall. “Steady” means you're locked to the click.</div>
+        <div class="tip" id="t3">Drift: are you gradually speeding up or slowing down? Near zero means you're holding the tempo.</div>
+        <div class="tip" id="t4">Tightness: how scattered your hits are around each beat, in milliseconds. Smaller is tighter.</div>
+      </section>
+
+      <!-- PATTERNS -->
+      <section class="card">
+        <div class="eyebrow"><h2>Patterns</h2></div>
+        <p class="hint">Tap the grid to place hits. Tempo follows your beat above (currently <b id="patBpm">88</b> BPM), so the two never fight.</p>
+
+        <!-- editor toolbar -->
+        <div class="pe-bar">
+          <div class="seg sub-seg">
+            <button onclick="setSub(this,1)">♩ Quarter</button>
+            <button class="sel" onclick="setSub(this,2)">♪ Eighth</button>
+            <button onclick="setSub(this,4)">♬ Sixteenth</button>
+          </div>
+          <div class="pe-right">
+            <label>Bars
+              <select id="bars" onchange="buildGrid(true)">
+                <option selected>1</option><option>2</option><option>4</option>
+              </select>
+            </label>
+            <button class="btn-ghost pe-clear" onclick="clearGrid()">Clear</button>
+          </div>
+        </div>
+
+        <!-- step grid -->
+        <div class="grid-scroll">
+          <div class="grid" id="grid"></div>
+        </div>
+        <p class="pe-tip">Top row is the count — the dot sweeps across as the pattern plays.</p>
+
+        <div class="controls">
+          <button class="play" id="patPlay" onclick="togglePattern()">▶ Play pattern</button>
+          <button class="btn-ghost" id="loopBtn" onclick="this.classList.toggle('on-ghost')">Loop</button>
+        </div>
+
+        <div class="toggle-row">
+          <div class="txt">
+            <div class="t">Practice mode</div>
+            <div class="s">Scores how cleanly you play this pattern.</div>
+          </div>
+          <button class="switch" id="practice" onclick="this.classList.toggle('on')" aria-label="Practice mode"></button>
+        </div>
+
+        <div class="saverow">
+          <input placeholder="Name this pattern…" />
+          <button class="btn-ghost">Save</button>
+        </div>
+        <div class="saverow" style="margin-top:8px">
+          <select style="flex:1"><option>Saved: Rock beat 1</option><option>Saved: Eighth-note groove</option></select>
+          <button class="btn-danger" id="delBtn" onclick="armDelete(this)">Delete</button>
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <details class="disc">
+        <summary>⚙︎ Settings <span class="chev">›</span></summary>
+        <div class="disc-body">
+
+          <div class="sub-h">Calibrate to your kit <span style="color:var(--good);font-weight:600">· recommended</span></div>
+          <p class="sub-p">Tap each drum a few times so DrumCoach learns how it sounds. About a minute, and it makes your feedback much sharper. Works fine without it too.</p>
+          <button class="btn-ghost" style="width:100%">● Calibrate my kit</button>
+
+          <div class="sub-h" style="margin-top:18px">Kit profiles</div>
+          <p class="sub-p">Save a calibration per kit or room and switch between them. Right now: <b>Default (uncalibrated)</b>.</p>
+          <div class="saverow" style="margin-top:0">
+            <input placeholder="Profile name…" />
+            <button class="btn-ghost">Save</button>
+          </div>
+
+          <div class="sub-h" style="margin-top:18px">Hit detection</div>
+          <p class="sub-p">Sensitivity — lower if quiet hits are missed, higher if it picks up too much.</p>
+          <input type="range" min="0" max="100" value="55" style="width:100%" />
+          <div class="rangelabels"><span>Catch quiet hits</span><span>Ignore noise</span></div>
+
+          <p class="sub-p" style="margin-top:16px">Ignore talking &amp; background noise</p>
+          <div class="seg">
+            <button onclick="seg(this)">Off</button>
+            <button class="sel" onclick="seg(this)">Some</button>
+            <button onclick="seg(this)">A lot</button>
+          </div>
+        </div>
+      </details>
+
+      <footer>Made with <span class="heart">❤</span> for Lily &amp; Ollie · © Nigel.in</footer>
+    </div>
+
+    <!-- ONBOARDING -->
+    <div class="overlay" id="overlay">
+      <div class="sheet">
+        <div class="grip"></div>
+        <div class="dots" id="dots"><i class="on"></i><i></i><i></i></div>
+        <div class="ob" id="obContent"></div>
+        <div class="ob-foot">Made for Lily &amp; Ollie 🥁</div>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="note" style="opacity:.8">This is a layout &amp; copy sketch — buttons demonstrate states, no audio engine is wired up.</p>
+
+<script>
+  // ---- metronome beat row ----
+  let playing=false, beatTimer=null, cur=0;
+  function buildBeats(){
+    const n=+document.getElementById('bpb').value;
+    const row=document.getElementById('beats'); row.innerHTML='';
+    for(let i=0;i<n;i++){const d=document.createElement('span');d.className='b'+(i===0?' lead':'');row.appendChild(d);}
+    cur=0;
+  }
+  function bpm(d){
+    const el=document.getElementById('bpmNum');
+    let v=Math.max(40,Math.min(208,+el.textContent+d));
+    el.textContent=v; document.getElementById('patBpm').textContent=v;
+    if(playing){stopBeat();startBeat();}
+  }
+  function startBeat(){
+    const dots=[...document.querySelectorAll('#beats .b')];
+    const interval=60000/(+document.getElementById('bpmNum').textContent);
+    cur=0;
+    const tick=()=>{
+      dots.forEach(x=>x.classList.remove('active'));
+      dots[cur].classList.add('active');
+      cur=(cur+1)%dots.length;
+    };
+    tick(); beatTimer=setInterval(tick,interval);
+  }
+  function stopBeat(){clearInterval(beatTimer);document.querySelectorAll('#beats .b').forEach(x=>x.classList.remove('active'));}
+  function togglePlay(){
+    playing=!playing;
+    const b=document.getElementById('playBtn');
+    b.classList.toggle('playing',playing);
+    b.textContent=playing?'⏸ Stop the beat':'▶ Start the beat';
+    if(playing){startBeat();revealMetrics();}else{stopBeat();}
+  }
+  function revealMetrics(){
+    document.getElementById('emptyState').hidden=true;
+    document.getElementById('metrics').hidden=false;
+  }
+
+  // ---- mic ----
+  function toggleMic(){
+    const bar=document.getElementById('micBar'),on=bar.classList.toggle('on');
+    document.getElementById('micLabel').textContent=on?'Mic is listening':'Mic is off';
+    document.getElementById('micBtn').textContent=on?'Turn off':'Turn on mic';
+    document.getElementById('micSub').textContent=on
+      ? 'Listening on this device only. Tap a drum to check it’s picking you up.'
+      : 'DrumCoach hears your drums through this device. Everything runs on your device — nothing is recorded or sent anywhere.';
+  }
+
+  // ---- tooltips ----
+  function tip(id){
+    document.querySelectorAll('.tip').forEach(t=>{if(t.id!==id)t.classList.remove('show')});
+    document.getElementById(id).classList.toggle('show');
+  }
+
+  // ---- delete confirm ----
+  let armed=false,armT=null;
+  function armDelete(b){
+    if(!armed){armed=true;b.classList.add('armed');b.textContent='Tap again to delete';armT=setTimeout(()=>{armed=false;b.classList.remove('armed');b.textContent='Delete';},2500);}
+    else{clearTimeout(armT);armed=false;b.classList.remove('armed');b.textContent='Deleted ✓';setTimeout(()=>b.textContent='Delete',1200);}
+  }
+  function seg(b){b.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');}
+
+  // ---- pattern editor ----
+  const voices=[
+    {name:'Hi-hat',color:'#2E8B72'},
+    {name:'Snare', color:'#FF5A36'},
+    {name:'Kick',  color:'#C8881F'}
+  ];
+  let sub=2;                      // steps per beat (eighths)
+  let pattern={};                 // "voiceIndex:step" -> true
+  function stepsTotal(){
+    const beats=+document.getElementById('bpb').value;
+    return beats*sub*(+document.getElementById('bars').value);
+  }
+  function defaultBeat(){
+    // basic rock beat at eighths: hats every step, snare on beats 2&4, kick on 1&3
+    pattern={};
+    const n=stepsTotal();
+    for(let i=0;i<n;i++) pattern['0:'+i]=true;        // hi-hat
+    pattern['1:'+(1*sub)]=true; pattern['1:'+(3*sub)]=true;  // snare → beats 2 & 4
+    pattern['2:'+(0*sub)]=true; pattern['2:'+(2*sub)]=true;  // kick  → beats 1 & 3
+  }
+  function buildGrid(rebuild){
+    if(rebuild){ // dropping/adding steps: clamp existing hits
+      const n=stepsTotal();
+      Object.keys(pattern).forEach(k=>{if(+k.split(':')[1]>=n)delete pattern[k]});
+    }
+    const n=stepsTotal(), beatLen=sub, g=document.getElementById('grid');
+    g.innerHTML='';
+    // count row
+    const cr=document.createElement('div');cr.className='grow countrow';
+    cr.appendChild(spacer());
+    for(let i=0;i<n;i++){
+      const c=document.createElement('div');c.className='cell';c.dataset.step=i;
+      if(i%beatLen===0){c.classList.add('beatnum');c.textContent=(i/beatLen)%(+document.getElementById('bpb').value)+1;}
+      cr.appendChild(c);
+    }
+    g.appendChild(cr);
+    // voice rows
+    voices.forEach((v,vi)=>{
+      const row=document.createElement('div');row.className='grow';
+      const lbl=document.createElement('div');lbl.className='vlabel';
+      lbl.innerHTML=`<span class="vdot" style="background:${v.color}"></span>${v.name}`;
+      row.appendChild(lbl);
+      for(let i=0;i<n;i++){
+        const c=document.createElement('button');
+        c.className='cell'+(i%beatLen===0?' beat':'');
+        c.dataset.step=i;c.style.setProperty('--vc',v.color);
+        if(pattern[vi+':'+i])c.classList.add('on');
+        c.onclick=()=>{const key=vi+':'+i;if(pattern[key]){delete pattern[key];c.classList.remove('on');}else{pattern[key]=true;c.classList.add('on');}};
+        row.appendChild(c);
+      }
+      g.appendChild(row);
+    });
+  }
+  function spacer(){const s=document.createElement('div');s.className='vlabel';return s;}
+  function setSub(btn,v){btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('sel'));btn.classList.add('sel');sub=v;buildGrid(true);}
+  function clearGrid(){pattern={};buildGrid();}
+
+  // playhead
+  let patPlaying=false,patTimer=null,ph=0;
+  function togglePattern(){
+    patPlaying=!patPlaying;
+    const b=document.getElementById('patPlay');
+    b.classList.toggle('playing',patPlaying);
+    b.textContent=patPlaying?'⏸ Playing pattern':'▶ Play pattern';
+    if(patPlaying)startPattern();else stopPattern();
+  }
+  function startPattern(){
+    const n=stepsTotal();ph=0;
+    const dur=60000/(+document.getElementById('bpmNum').textContent)/sub;
+    const move=()=>{
+      document.querySelectorAll('#grid .cell.ph').forEach(c=>c.classList.remove('ph'));
+      document.querySelectorAll('#grid .cell[data-step="'+ph+'"]').forEach(c=>c.classList.add('ph'));
+      ph=(ph+1)%n;
+    };
+    move();patTimer=setInterval(move,dur);
+  }
+  function stopPattern(){clearInterval(patTimer);document.querySelectorAll('#grid .cell.ph').forEach(c=>c.classList.remove('ph'));}
+
+  // ---- onboarding ----
+  const steps=[
+    {icon:'🥁',h:'Hi! Ready to drum?',p:'DrumCoach listens while you play and shows whether your timing is steady. Three quick things and you’re off.',primary:'Next',ghost:null},
+    {icon:'🎙️',h:'Turn on your mic',p:'DrumCoach hears your drums through this device’s microphone. Everything happens on your device — nothing is recorded or sent anywhere.',tag:'Private by design',primary:'Turn on mic',ghost:'Skip'},
+    {icon:'🎯',h:'Set a beat and play',p:'Pick a tempo, start the click, and play along. Watch the timing panel to see if you’re speeding up, slowing down, or right in the pocket. You can calibrate your kit any time for sharper feedback.',primary:'Start drumming',ghost:null}
+  ];
+  let s=0;
+  function renderOB(){
+    const st=steps[s];
+    document.getElementById('obContent').innerHTML=
+      `<div class="ob-icon">${st.icon}</div>
+       <h3>${st.h}</h3>
+       <p>${st.p}</p>
+       ${st.tag?`<div class="center"><span class="tag">✓ ${st.tag}</span></div>`:''}
+       <div class="ob-actions">
+         ${st.ghost?`<button class="ghost" onclick="obGhost()">${st.ghost}</button>`:''}
+         <button class="primary" onclick="obNext()">${st.primary}</button>
+       </div>`;
+    [...document.querySelectorAll('#dots i')].forEach((d,i)=>d.classList.toggle('on',i===s));
+  }
+  function obNext(){
+    if(s===1){toggleMic();}      // "Turn on mic" actually flips the mic on behind the sheet
+    if(s<steps.length-1){s++;renderOB();}else{closeOB();}
+  }
+  function obGhost(){ if(s<steps.length-1){s++;renderOB();}else{closeOB();} }
+  function openOB(){s=0;renderOB();document.getElementById('overlay').hidden=false;}
+  function closeOB(){document.getElementById('overlay').hidden=true;}
+
+  buildBeats(); defaultBeat(); buildGrid(); renderOB();
+</script>
+</body>
+</html>
