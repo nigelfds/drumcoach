@@ -184,7 +184,7 @@ export class AudioEngine {
         peakEnergy: feat.energy,
         frames: [feat],
         voiceActiveAtOnset: this._voiceActive,
-        endsAt: t + 0.08,
+        endsAt: t + 0.13, // long enough to catch the kick's downsweep into sub
       };
     }
 
@@ -206,9 +206,29 @@ export class AudioEngine {
       return;
     }
 
-    const { voice, confidence, scores } = this.classify(c.onsetFeat, 1);
-    if (this._onFeatures) this._onFeatures(c.onsetFeat);
-    if (this._onHit) this._onHit(voice, { time: c.time, confidence, features: c.onsetFeat, scores });
+    // Classify on the loudest frame of the candidate window (the body of the
+    // hit), not the rising-edge onset frame. The peak frame is more stable and
+    // matches the profiles (which are measured at the peak), and it decouples
+    // classification from how early the onset fired (i.e. from sensitivity).
+    let cf = c.onsetFeat, peakE = -Infinity;
+    for (const f of c.frames) { if (f.energy > peakE) { peakE = f.energy; cf = f; } }
+
+    let { voice, confidence, scores } = this.classify(cf, 1);
+
+    // Kick vs floor-tom tiebreak. They're near-identical at the peak, but the
+    // kick sweeps down into the sub band (≈45 Hz) over its decay while the floor
+    // tom bottoms out higher. When those two are the closest match, decide by
+    // how much sub-band energy showed up in the tail of the hit.
+    const ranked = Object.entries(scores).sort((a, b) => a[1] - b[1]);
+    const top2 = ranked.slice(0, 2).map((e) => e[0]);
+    if (top2.includes("kick") && top2.includes("tom3")) {
+      const tail = c.frames.slice(-4);
+      const subTail = tail.reduce((s, f) => s + (f.sub || 0), 0) / Math.max(1, tail.length);
+      voice = subTail > 0.15 ? "kick" : "tom3";
+    }
+
+    if (this._onFeatures) this._onFeatures(cf);
+    if (this._onHit) this._onHit(voice, { time: c.time, confidence, features: cf, scores });
   }
 
   /**
