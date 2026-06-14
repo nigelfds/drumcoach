@@ -60,33 +60,38 @@ the DOM-wiring half of `app.js`**.
 - [x] Write this design doc
 
 ### Phase 1 — visual shell
-- [ ] New mobile-first `public/index.html` structure (header, mic, set-beat, play-along, patterns, settings disclosure, onboarding overlay, footer)
-- [ ] New light `public/styles.css` (tokens + fonts above)
+- [x] New mobile-first `public/index.html` structure (header, mic, set-beat, play-along, patterns, settings disclosure, onboarding overlay, footer)
+- [x] New light `public/styles.css` (tokens + fonts above)
 
 ### Phase 2 — wire existing features to the new UI (`app.js`)
-- [ ] Mic: toggle, level, reassurance copy
-- [ ] Metronome: BPM steppers + number, beat dots, start/stop, beats-per-bar, volume
-- [ ] Play-along: empty state → 4 metrics from `TimingAnalyzer`, ⓘ tooltips
-- [ ] Patterns: grid + count-row playhead, Play, Loop, Practice switch, tempo-follows label
-- [ ] Pattern store: Save / Load / Delete (two-tap), per active kit
-- [ ] Settings: calibrate flow, kit profiles, sensitivity, voice rejection
-- [ ] Cloud sync button
-- [ ] Onboarding overlay (first-run + ↺ replay)
+- [x] Mic: toggle, level, reassurance copy
+- [x] Metronome: BPM steppers + number, beat dots, start/stop, beats-per-bar, volume
+- [x] Play-along: empty state → 4 metrics from `TimingAnalyzer`, ⓘ tooltips
+- [x] Patterns: grid + count-row playhead, Play, Loop, Practice switch, tempo-follows label
+- [x] Pattern store: Save / Load / Delete (two-tap), per active kit
+- [x] Settings: calibrate flow, kit profiles, sensitivity, voice rejection
+- [x] Cloud sync button
+- [x] Onboarding overlay (first-run + ↺ replay)
 
 ### Phase 3 — add the rest of the kit to patterns
-- [ ] Default rows: Kick, Snare, Hi-hat
-- [ ] "Add drums" control → Tom 1 / Tom 2 / Tom 3 / Ride / Crash
-- [ ] Each row uses the existing drum-type SVG icon
-- [ ] Row tap previews via `DrumSynth`; pattern playback sounds all voices via `DrumSynth`
+- [x] Default rows: Kick, Snare, Hi-hat
+- [x] "Add drums" control → Tom 1 / Tom 2 / Tom 3 / Ride / Crash (+ per-row × to remove)
+- [x] Each row uses the existing drum-type SVG icon
+- [x] Row tap previews via `DrumSynth`; pattern playback sounds all voices via `DrumSynth`
 
 ### Phase 4 — pattern resolution
-- [ ] Subdivision selector (♩ quarter / ♪ eighth / ♬ sixteenth) → `sequencer.stepsPerBeat`
+- [x] Subdivision selector (♩ quarter / ♪ eighth / ♬ sixteenth) → `sequencer.stepsPerBeat`
 
 ### Phase 5 — polish & verify
-- [ ] Verify on a mobile viewport (Playwright)
-- [ ] Empty states, tooltip behaviour, tap-target sizes, contrast
-- [ ] Confirm cloud-sync-off path still clean; no console errors
+- [x] Verify on a mobile viewport (Playwright, 414×896) — onboarding, grid, settings render; no console errors
+- [x] Empty states, tooltip behaviour, single-tempo sync, subdivision rebuild verified
+- [ ] On-device pass for contrast / tap targets / real mic accuracy (needs a phone)
 - [ ] (Optional/deferred) re-add the notation staff as a toggle
+
+### Shared-clock change (enabling)
+- [x] One `AudioContext` shared by engine/metronome/synth so the beat works
+  without the mic and onset timestamps line up with the metronome grid
+  (`audio-engine.start(ctx)`, `drum-synth.setContext`, `sequencer.setStepsPerBeat`).
 
 ## Notes
 

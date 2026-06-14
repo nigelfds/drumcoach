@@ -2,227 +2,197 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>🥁 DrumCoach</title>
+  <meta name="theme-color" content="#E7ECE6" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🥁</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="topbar-inner">
+  <div class="app">
+
+    <!-- HEADER -->
+    <header class="top">
       <div class="brand">
-        <h1><span class="logo">🥁</span> DrumCoach</h1>
-        <p class="tagline">A practice tool for beginners to help with timing. Calibrate for best results.</p>
-      </div>
-      <div class="topbar-controls">
-        <button id="sync-btn" class="btn btn-sync" hidden>☁ Sync</button>
-        <div class="meter" title="Microphone input level">
-          <div id="level-fill" class="meter-fill"></div>
+        <span class="logo">🥁</span>
+        <div>
+          <h1>DrumCoach</h1>
+          <p>Find your timing. Keep the beat.</p>
         </div>
-        <button id="mic-btn" class="btn btn-primary">▶ Start mic</button>
       </div>
-    </div>
-  </header>
+      <div class="top-actions">
+        <button class="replay" id="sync-btn" hidden>☁ Sync</button>
+        <button class="replay" id="replay-btn">↺ Intro</button>
+      </div>
+    </header>
 
-  <main>
-    <!-- Live staff ----------------------------------------------------- -->
-    <section class="panel staff-panel">
-      <div class="panel-head">
-        <h2>Live staff</h2>
-        <div class="last-hit">
-          last: <span id="last-voice">—</span>
-          <span id="last-conf" class="conf"></span>
+    <!-- MIC -->
+    <div class="mic" id="mic-bar">
+      <div class="row">
+        <span class="dot"></span>
+        <span class="label" id="mic-label">Mic is off</span>
+        <button id="mic-btn">Turn on mic</button>
+      </div>
+      <div class="level"><div class="level-fill" id="mic-level"></div></div>
+      <p class="sub" id="mic-sub">DrumCoach hears your drums through this device. Everything runs on your device — nothing is recorded or sent anywhere.</p>
+    </div>
+
+    <!-- 1 · SET YOUR BEAT -->
+    <section class="card">
+      <div class="eyebrow"><span class="step">1</span><h2>Set your beat</h2></div>
+      <p class="hint">Pick a tempo and start the click. Slower is easier to stay with.</p>
+
+      <div class="tempo">
+        <button class="stepper" id="bpm-down">−</button>
+        <div class="center"><span class="num" id="bpm-num">88</span><span class="unit">BPM</span></div>
+        <button class="stepper" id="bpm-up">+</button>
+      </div>
+
+      <div class="beats" id="beat-dots"></div>
+
+      <div class="controls"><button class="play" id="metro-play">▶ Start the beat</button></div>
+
+      <div class="twocol">
+        <div class="field">
+          <label>Beats per bar</label>
+          <select id="beats-select">
+            <option>2</option><option>3</option><option selected>4</option><option>6</option><option>8</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Click volume</label>
+          <input type="range" id="click-vol" min="0" max="100" value="60" />
         </div>
       </div>
-      <canvas id="staff" class="staff-canvas"></canvas>
     </section>
 
-    <div class="grid-2">
-      <!-- Timing readouts --------------------------------------------- -->
-      <section class="panel">
-        <div class="panel-head"><h2>Timing</h2></div>
-        <div class="stats">
-          <div class="stat">
-            <div class="stat-value" id="bpm-value">—</div>
-            <div class="stat-label">your BPM</div>
-          </div>
-          <div class="stat">
-            <div class="stat-value" id="steady-value">—</div>
-            <div class="stat-label">steadiness</div>
-          </div>
-          <div class="stat">
-            <div class="stat-value" id="drift-value">—</div>
-            <div class="stat-label">drift</div>
-          </div>
-          <div class="stat">
-            <div class="stat-value" id="tight-value">—</div>
-            <div class="stat-label">spread (ms)</div>
-          </div>
-        </div>
-        <p id="drift-hint" class="hint">Play along with the metronome to see drift.</p>
-      </section>
+    <!-- 2 · PLAY ALONG -->
+    <section class="card">
+      <div class="eyebrow"><span class="step">2</span><h2>Play along</h2></div>
+      <p class="hint">Start the beat above and play. Your timing shows up here, live.</p>
 
-      <!-- Metronome --------------------------------------------------- -->
-      <section class="panel">
-        <div class="panel-head"><h2>Metronome</h2></div>
-        <div class="row">
-          <button id="metro-btn" class="btn">▶ Start</button>
-          <div class="bpm-control">
-            <button id="bpm-down" class="btn btn-icon">−</button>
-            <input id="bpm-input" type="number" min="30" max="300" value="100" />
-            <span class="unit">BPM</span>
-            <button id="bpm-up" class="btn btn-icon">+</button>
-          </div>
-        </div>
-        <input id="bpm-range" type="range" min="40" max="220" value="100" class="slider" />
-        <div class="row">
-          <label>Beats / bar
-            <select id="beats-select">
-              <option>2</option><option>3</option><option selected>4</option>
-              <option>5</option><option>6</option><option>7</option><option>8</option>
-            </select>
-          </label>
-          <label class="vol">Volume
-            <input id="metro-vol" type="range" min="0" max="1" step="0.05" value="0.6" class="slider" />
-          </label>
-        </div>
-        <div class="beat-dots" id="beat-dots"></div>
-      </section>
-    </div>
+      <div class="empty" id="fb-empty">
+        Nothing yet — <b>start the beat</b> and play a few bars.<br />
+        Your tempo, drift and tightness will appear here.
+      </div>
 
-    <!-- Pattern sequencer --------------------------------------------- -->
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Pattern</h2>
-        <div class="seq-controls">
-          <button id="pattern-play" class="btn btn-accent">▶ Play</button>
-          <label class="loop-toggle">
-            <input type="checkbox" id="pattern-loop" checked /> Loop
-          </label>
-          <label class="tempo-control">♩
-            <input id="pattern-bpm" type="number" min="30" max="300" value="100" /> BPM
-          </label>
+      <div class="metrics" id="fb-metrics" hidden>
+        <div class="metric"><span class="k">Your tempo <button class="info" data-tip="tempo">i</button></span><span class="v" id="m-tempo">—</span></div>
+        <div class="metric"><span class="k">In time <button class="info" data-tip="intime">i</button></span><span class="v" id="m-intime">—</span></div>
+        <div class="metric"><span class="k">Drift <button class="info" data-tip="drift">i</button></span><span class="v" id="m-drift">—</span></div>
+        <div class="metric"><span class="k">Tightness <button class="info" data-tip="tight">i</button></span><span class="v" id="m-tight">—</span></div>
+      </div>
+      <div class="tip" id="tip-tempo">Your tempo: how fast you're actually playing, in beats per minute.</div>
+      <div class="tip" id="tip-intime">In time: how consistent your timing is overall. “Steady” means you're locked to the click.</div>
+      <div class="tip" id="tip-drift">Drift: are you speeding up or slowing down compared to the click? Near zero is right in the pocket.</div>
+      <div class="tip" id="tip-tight">Tightness: how scattered your hits are around each beat, in milliseconds. Smaller is tighter.</div>
+    </section>
+
+    <!-- PATTERNS -->
+    <section class="card">
+      <div class="eyebrow"><h2>Patterns</h2></div>
+      <p class="hint">Tap the grid to place hits. Tempo follows your beat above (currently <b id="pat-bpm">88</b> BPM), so the two never fight.</p>
+
+      <div class="pe-bar">
+        <div class="seg sub-seg" id="sub-seg">
+          <button data-sub="1">♩ Quarter</button>
+          <button class="sel" data-sub="2">♪ Eighth</button>
+          <button data-sub="4">♬ Sixteenth</button>
+        </div>
+        <div class="pe-right">
           <label>Bars
-            <select id="bars-select">
-              <option value="1">1</option><option value="2" selected>2</option>
-              <option value="4">4</option><option value="8">8</option>
-              <option value="16">16</option>
-            </select>
+            <select id="bars-select"><option selected>1</option><option>2</option><option>4</option></select>
           </label>
-          <button id="practice-btn" class="btn">🎯 Practice off</button>
-          <button id="clear-pattern" class="btn">Clear</button>
+          <button class="btn-ghost pe-clear" id="clear-pattern">Clear</button>
         </div>
       </div>
-      <div class="seq-scroll">
-        <div id="sequencer" class="sequencer"></div>
-      </div>
-      <div id="pattern-meta" class="seq-meta"></div>
 
-      <div class="row pattern-store-row">
-        <label class="kit-field">Saved pattern
-          <select id="pattern-select" title="Load a saved pattern for the current kit"></select>
-        </label>
-        <label class="kit-field grow">Name
-          <input id="pattern-name" type="text" placeholder="e.g. Basic rock beat…" maxlength="40" />
-        </label>
-        <div class="kit-actions">
-          <button id="pattern-save-btn" class="btn btn-small btn-accent">Save</button>
-          <button id="pattern-delete" class="btn btn-small" disabled>Delete</button>
-        </div>
-        <span id="pattern-store-status" class="hint"></span>
+      <div class="grid-scroll"><div class="grid" id="grid"></div></div>
+      <div class="adder-row">
+        <button class="btn-ghost add-btn" id="add-drums">＋ Add drums</button>
+        <div class="drum-adder" id="drum-adder" hidden></div>
+      </div>
+      <p class="pe-tip">Top row is the count — the dot sweeps across as the pattern plays. Tap a drum's icon to hear it.</p>
+
+      <div class="controls">
+        <button class="play" id="pattern-play">▶ Play pattern</button>
+        <button class="btn-ghost" id="loop-btn">Loop</button>
       </div>
 
-      <div class="score" id="score">
-        <span class="score-pill">Annotate a pattern, turn on Practice, start the metronome, and play.</span>
+      <div class="toggle-row">
+        <div class="txt"><div class="t">Practice mode</div><div class="s">Scores how cleanly you play this pattern.</div></div>
+        <button class="switch" id="practice-switch" aria-label="Practice mode"></button>
       </div>
+      <div class="score" id="score" hidden></div>
+
+      <div class="saverow">
+        <input id="pattern-name" placeholder="Name this pattern…" maxlength="40" />
+        <button class="btn-ghost" id="pattern-save-btn">Save</button>
+      </div>
+      <div class="saverow" style="margin-top:8px">
+        <select id="pattern-select" style="flex:1"></select>
+        <button class="btn-danger" id="pattern-delete">Delete</button>
+      </div>
+      <p class="pe-tip" id="pattern-store-status"></p>
     </section>
 
-    <!-- Calibration & sensitivity ------------------------------------- -->
-    <section class="panel">
-      <div class="panel-head">
-        <h2>Settings</h2>
-      </div>
+    <!-- SETTINGS -->
+    <details class="disc" id="settings">
+      <summary>⚙︎ Settings <span class="chev">›</span></summary>
+      <div class="disc-body">
 
-      <!-- A · Saved kit profiles (load / save) ----------------------- -->
-      <div class="subpanel">
-        <div class="subpanel-head">
-          <span class="subpanel-title">Kit profile</span>
-          <span class="subpanel-sub">Save a calibration per kit / room and switch between them</span>
+        <div class="sub-h">Calibrate to your kit <span class="reco">· recommended</span></div>
+        <p class="sub-p">Tap each drum a few times so DrumCoach learns how it sounds. About a minute, and it makes your feedback much sharper. Works fine without it too.</p>
+        <div class="cal-step-label" id="cal-pick-label">Pick a drum, then record a few hits:</div>
+        <div class="cal-grid" id="cal-grid"></div>
+        <div class="cal-actions">
+          <button class="btn-ghost" id="cal-toggle" disabled>● Start calibration</button>
+          <span class="cal-status" id="cal-status">Pick a drum above to begin.</span>
         </div>
-        <div class="row kit-row">
-          <label class="kit-field">Profile
-            <select id="kit-select" title="Switch between saved kit profiles"></select>
-          </label>
-          <label class="kit-field grow">Name
-            <input id="kit-name" type="text" placeholder="e.g. Garage acoustic…" maxlength="40" />
-          </label>
-          <div class="kit-actions">
-            <button id="kit-save" class="btn btn-small btn-accent">Save</button>
-            <button id="kit-delete" class="btn btn-small" disabled>Delete</button>
-            <button id="forget-cal" class="btn btn-small btn-ghost">Forget calibration</button>
-          </div>
-        </div>
-        <div id="kit-status" class="hint">Using default (uncalibrated) profiles.</div>
-      </div>
+        <div class="cal-banner" id="cal-banner" hidden><span class="rec"></span><span id="cal-banner-text">Recording…</span><span class="cal-count" id="cal-count">0 hits</span></div>
 
-      <!-- B · Calibration capture ------------------------------------ -->
-      <div class="subpanel">
-        <div class="subpanel-head">
-          <span class="subpanel-title">Calibrate to your kit</span>
-          <span class="subpanel-sub">Teach the app what each drum sounds like</span>
+        <div class="sub-h" style="margin-top:18px">Kit profiles</div>
+        <p class="sub-p">Save a calibration per kit or room and switch between them.</p>
+        <div class="saverow" style="margin-top:0">
+          <select id="kit-select" style="flex:1"></select>
+          <button class="btn-ghost" id="kit-delete" disabled>Delete</button>
         </div>
-
-        <div class="cal-stepblock">
-          <div class="cal-step">1 · Pick a drum</div>
-          <div class="cal-grid" id="cal-grid"></div>
+        <div class="saverow" style="margin-top:8px">
+          <input id="kit-name" placeholder="Profile name…" maxlength="40" />
+          <button class="btn-ghost" id="kit-save">Save</button>
+          <button class="btn-ghost" id="forget-cal">Forget</button>
         </div>
+        <p class="sub-p" id="kit-status" style="margin-top:8px">Using default (uncalibrated) profiles.</p>
 
-        <div class="cal-stepblock">
-          <div class="cal-step">2 · Record</div>
-          <div class="row cal-actions">
-            <button id="cal-toggle" class="btn cal-start" disabled>● Start calibration</button>
-            <span id="cal-status" class="hint">Pick a drum above to begin.</span>
-          </div>
-        </div>
+        <div class="sub-h" style="margin-top:18px">Hit detection</div>
+        <p class="sub-p">Sensitivity — lower if quiet hits are missed, higher if it picks up too much.</p>
+        <input type="range" id="sens-range" min="0.4" max="2.5" step="0.05" value="1" style="width:100%" />
+        <div class="rangelabels"><span>Catch quiet hits</span><span>Ignore noise</span></div>
 
-        <div id="cal-banner" class="cal-banner" hidden>
-          <span class="rec-dot"></span>
-          <span id="cal-banner-text">Recording…</span>
-          <span id="cal-count" class="cal-count">0 hits</span>
+        <p class="sub-p" style="margin-top:16px">Ignore talking &amp; background noise</p>
+        <div class="seg" id="voice-mode">
+          <button data-mode="off">Off</button>
+          <button data-mode="moderate">Some</button>
+          <button class="sel" data-mode="aggressive">A lot</button>
         </div>
       </div>
+    </details>
 
-      <!-- C · Detection tuning --------------------------------------- -->
-      <div class="subpanel">
-        <div class="subpanel-head">
-          <span class="subpanel-title">Detection tuning</span>
-          <span class="subpanel-sub">Fine-tune how hits are picked up</span>
-        </div>
+    <footer>Made with <span class="heart">❤</span> for Lily &amp; Ollie · © Nigel.in</footer>
+  </div>
 
-        <div class="cal-step">Sensitivity</div>
-        <div class="row">
-          <label class="sens">Quieter hits ◀
-            <input id="sens-range" type="range" min="0.4" max="2.5" step="0.05" value="1" class="slider" />
-            ▶ Fewer false hits
-          </label>
-        </div>
-
-        <div class="cal-step">Voice rejection</div>
-        <div class="row voice-row">
-          <div class="seg" id="voice-mode" role="group" aria-label="Voice rejection mode">
-            <button data-mode="off" class="seg-btn">Off</button>
-            <button data-mode="moderate" class="seg-btn">Moderate</button>
-            <button data-mode="aggressive" class="seg-btn active">Aggressive</button>
-          </div>
-          <span id="voice-hint" class="hint"></span>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <footer class="foot">
-    <span class="credit">Made with ❤️ for Lily and Ollie&nbsp; ·&nbsp; © Nigel.in</span>
-  </footer>
+  <!-- ONBOARDING -->
+  <div class="overlay" id="overlay" hidden>
+    <div class="sheet">
+      <div class="grip"></div>
+      <div class="dots" id="ob-dots"></div>
+      <div class="ob" id="ob-content"></div>
+      <div class="ob-foot">Made for Lily &amp; Ollie 🥁</div>
+    </div>
+  </div>
 
   <script type="module" src="js/app.js"></script>
 </body>
