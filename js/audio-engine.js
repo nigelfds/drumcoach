@@ -85,7 +85,7 @@ export class AudioEngine {
   /** AudioContext clock — the single source of truth for timing. */
   now() { return this.ctx ? this.ctx.currentTime : performance.now() / 1000; }
 
-  async start() {
+  async start(externalCtx) {
     if (this.running) return;
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -95,7 +95,10 @@ export class AudioEngine {
         channelCount: 1,
       },
     });
-    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    // Share the app's AudioContext when given, so onset timestamps and the
+    // metronome grid use one clock. Otherwise create (and own) our own.
+    if (externalCtx) { this.ctx = externalCtx; this._ownCtx = false; }
+    else { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this._ownCtx = true; }
     if (this.ctx.state === "suspended") await this.ctx.resume();
 
     const source = this.ctx.createMediaStreamSource(this.stream);
@@ -121,8 +124,9 @@ export class AudioEngine {
     this.running = false;
     if (this._raf) cancelAnimationFrame(this._raf);
     if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
-    if (this.ctx) this.ctx.close();
-    this.ctx = this.analyser = this.stream = null;
+    if (this.ctx && this._ownCtx) this.ctx.close(); // don't close a shared ctx
+    this.analyser = this.stream = null;
+    if (this._ownCtx) this.ctx = null;
   }
 
   _tick() {

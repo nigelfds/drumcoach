@@ -11,6 +11,10 @@ export class DrumSynth {
     this.ctx = null;
   }
 
+  // Share an external AudioContext (so the metronome, synth, and mic all use one
+  // clock). Must be set before the first sound.
+  setContext(ctx) { this.ctx = ctx; return this; }
+
   // The audio context (created/resumed on demand). Call from a user gesture.
   context() { return this._ensure(); }
 

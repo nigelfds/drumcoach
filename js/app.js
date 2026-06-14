@@ -1,20 +1,18 @@
-// app.js — wires the modules together and owns UI state.
+// app.js — wires the redesigned (light, mobile-first) UI to the logic modules.
 
-import { Notation, VOICES } from "./notation.js";
 import { AudioEngine } from "./audio-engine.js";
 import { TimingAnalyzer } from "./timing.js";
 import { Metronome } from "./metronome.js";
 import { PatternSequencer } from "./sequencer.js";
 import { ProfileStore } from "./profiles-store.js";
-import { DrumSynth } from "./drum-synth.js";
-import { PatternPlayer } from "./pattern-player.js";
 import { PatternStore } from "./pattern-store.js";
 import { CloudSync } from "./cloud-sync.js";
+import { DrumSynth } from "./drum-synth.js";
+import { PatternPlayer } from "./pattern-player.js";
 
 const $ = (id) => document.getElementById(id);
 
-// --- module instances -----------------------------------------------------
-const notation = new Notation($("staff"), { windowSeconds: 4 });
+// --- modules ---------------------------------------------------------------
 const engine = new AudioEngine();
 const timing = new TimingAnalyzer();
 const metro = new Metronome();
@@ -22,328 +20,356 @@ const seq = new PatternSequencer();
 const kits = new ProfileStore();
 const patterns = new PatternStore();
 const synth = new DrumSynth();
-const player = new PatternPlayer(synth, seq, 100);
+const player = new PatternPlayer(synth, seq, 88);
 const cloud = new CloudSync({ kits, patterns });
 
-// --- UI state --------------------------------------------------------------
-const state = {
-  practice: false,
-  calVoice: null,           // voice selected for calibration (not yet recording)
-  calibrating: null,        // voice currently being recorded
-  calSamples: [],
-  kitDirty: false,          // live calibration has unsaved changes
+// --- shared audio clock (so beat works without the mic, on one clock) -------
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  synth.setContext(audioCtx);
+  metro.setContext(audioCtx);
+  return audioCtx;
+}
+const nowTime = () => (audioCtx ? audioCtx.currentTime : performance.now() / 1000);
+
+// --- voices -----------------------------------------------------------------
+const VOICE_META = {
+  hihat: { label: "Hi-hat", color: "#2E8B72" },
+  crash: { label: "Crash", color: "#C8881F" },
+  ride:  { label: "Ride",  color: "#3a9bd6" },
+  tom1:  { label: "Tom 1", color: "#5a73e0" },
+  tom2:  { label: "Tom 2", color: "#8a5ce0" },
+  tom3:  { label: "Tom 3", color: "#b85ab8" },
+  snare: { label: "Snare", color: "#FF5A36" },
+  kick:  { label: "Kick",  color: "#15252A" },
 };
+const ORDER = ["hihat", "crash", "ride", "tom1", "tom2", "tom3", "snare", "kick"];
+const DEFAULT_SHOWN = ["hihat", "snare", "kick"];
+const EXTRA = ["crash", "ride", "tom1", "tom2", "tom3"];
 
-const VOICE_LABEL = Object.fromEntries(
-  Object.entries(VOICES).map(([k, v]) => [k, v.label])
-);
-
-// Little icons shaped like each drum type, shown next to the names in the
-// Pattern grid (clicking still previews the sound). currentColor lets CSS
-// drive the colour. viewBox 16×16.
-const SVG = (body) =>
-  `<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" ` +
-  `fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round">${body}</svg>`;
-
-const DRUM_ICONS = {
-  // Bass drum, front view: ring + beater spot.
-  kick: SVG(`<circle cx="8" cy="8" r="6" stroke-width="1.3"/><circle cx="8" cy="8" r="2.1" fill="currentColor" stroke="none"/>`),
-  // Snare: shallow drum cylinder + snare wire underneath.
+// drum-type icons (from the existing app)
+const SVG = (b) => `<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round">${b}</svg>`;
+const ICONS = {
+  kick:  SVG(`<circle cx="8" cy="8" r="6" stroke-width="1.3"/><circle cx="8" cy="8" r="2.1" fill="currentColor" stroke="none"/>`),
   snare: SVG(`<rect x="2.5" y="5" width="11" height="5.5" rx="1.6"/><ellipse cx="8" cy="5" rx="5.5" ry="1.8"/><path d="M4 12h8" stroke-width="0.9"/>`),
-  // Tom: deeper drum cylinder.
-  tom: SVG(`<rect x="3" y="3.8" width="10" height="8.2" rx="1.6"/><ellipse cx="8" cy="3.8" rx="5" ry="1.7"/>`),
-  // Hi-hat: two cymbals on a rod.
+  tom:   SVG(`<rect x="3" y="3.8" width="10" height="8.2" rx="1.6"/><ellipse cx="8" cy="3.8" rx="5" ry="1.7"/>`),
   hihat: SVG(`<ellipse cx="8" cy="6" rx="6" ry="1.3"/><ellipse cx="8" cy="8.7" rx="6" ry="1.3"/><path d="M8 2.5v11" stroke-width="1"/>`),
-  // Cymbal (ride / crash): disc with a bell, on a stand.
   cymbal: SVG(`<ellipse cx="8" cy="5" rx="6.5" ry="1.6"/><circle cx="8" cy="5" r="0.7" fill="currentColor" stroke="none"/><path d="M8 5.4v8.6"/>`),
 };
+const iconFor = (v) => v === "kick" ? ICONS.kick : v === "snare" ? ICONS.snare
+  : v.startsWith("tom") ? ICONS.tom : v === "hihat" ? ICONS.hihat : ICONS.cymbal;
 
-function drumIconSvg(voice) {
-  if (voice === "kick") return DRUM_ICONS.kick;
-  if (voice === "snare") return DRUM_ICONS.snare;
-  if (voice.startsWith("tom")) return DRUM_ICONS.tom;
-  if (voice === "hihat") return DRUM_ICONS.hihat;
-  return DRUM_ICONS.cymbal; // ride, crash
-}
+// --- state ------------------------------------------------------------------
+const state = {
+  shown: new Set(DEFAULT_SHOWN),
+  practice: false,
+  calVoice: null, calibrating: null, calSamples: [], kitDirty: false,
+};
 
-// ==========================================================================
-// Microphone / audio engine
-// ==========================================================================
-engine.onLevel((lvl) => {
-  $("level-fill").style.width = `${Math.round(lvl * 100)}%`;
-});
+// ===========================================================================
+// MIC
+// ===========================================================================
+engine.onLevel((lvl) => { $("mic-level").style.width = `${Math.round(lvl * 100)}%`; });
 
 engine.onHit((voice, info) => {
-  // Calibration capture takes precedence over normal handling.
   if (state.calibrating) {
     state.calSamples.push(info.features);
     updateCalBanner();
-    if (state.calSamples.length >= 16) stopCalibration(); // safety cap
+    if (state.calSamples.length >= 16) stopCalibration();
     return;
   }
-
   const grid = metro.getGrid();
   timing.addOnset(info.time, grid);
-
-  // Judge against the pattern if practising; else just notate.
-  let judgement = "plain";
-  if (state.practice && grid) {
-    judgement = seq.judgeHit(voice, info.time);
-  } else if (grid) {
-    judgement = "plain";
-  }
-
-  notation.addHit(info.time, voice, judgement);
-
-  $("last-voice").textContent = VOICE_LABEL[voice] ?? voice;
-  $("last-conf").textContent = `${Math.round(info.confidence * 100)}%`;
+  if (state.practice && grid) seq.judgeHit(voice, info.time);
 });
 
-$("mic-btn").addEventListener("click", async () => {
-  if (engine.running) {
-    if (state.calibrating) stopCalibration();
-    engine.stop();
-    metro.stop();
-    $("mic-btn").textContent = "▶ Start mic";
-    $("mic-btn").classList.add("btn-primary");
-    return;
-  }
+async function startMic() {
   try {
-    await engine.start();
-    metro.setContext(engine.ctx);
-    $("mic-btn").textContent = "■ Stop mic";
-    $("mic-btn").classList.remove("btn-primary");
-  } catch (err) {
-    alert("Could not access the microphone: " + err.message);
-  }
-});
-
-$("sens-range").addEventListener("input", (e) => {
-  // Invert: a higher "sensitivity" slider should detect quieter hits, i.e. a
-  // lower internal multiplier.
-  const v = +e.target.value;
-  engine.sensitivity = 1 / v;
-});
-
-// Voice-rejection mode (off / moderate / aggressive). Defaults to aggressive.
-const voiceModeEl = $("voice-mode");
-let voicesFiltered = 0;
-const VOICE_HINTS = {
-  off: "Off — every onset is treated as a drum.",
-  moderate: "Moderate — filters sustained, pitched, speech-band sounds (~90 ms delay).",
-  aggressive: "Aggressive — also detects talking and blocks the most voice.",
-};
-function updateVoiceHint(mode) {
-  const base = VOICE_HINTS[mode] ?? "";
-  $("voice-hint").textContent = voicesFiltered ? `${base}  •  ${voicesFiltered} filtered` : base;
-}
-for (const b of voiceModeEl.querySelectorAll(".seg-btn")) {
-  b.addEventListener("click", () => {
-    engine.setVoiceRejection(b.dataset.mode);
-    for (const x of voiceModeEl.querySelectorAll(".seg-btn")) x.classList.toggle("active", x === b);
-    updateVoiceHint(b.dataset.mode);
-  });
-}
-engine.onVoiceReject(() => { voicesFiltered++; updateVoiceHint(engine.voiceRejection); });
-updateVoiceHint(engine.voiceRejection);
-
-// ==========================================================================
-// Metronome
-// ==========================================================================
-const beatDots = $("beat-dots");
-
-function rebuildBeatDots() {
-  beatDots.innerHTML = "";
-  for (let i = 0; i < metro.beatsPerBar; i++) {
-    const d = document.createElement("div");
-    d.className = "dot" + (i === 0 ? " strong" : "");
-    beatDots.appendChild(d);
+    ensureAudio();
+    await engine.start(audioCtx);
+    $("mic-bar").classList.add("on");
+    $("mic-label").textContent = "Mic is listening";
+    $("mic-btn").textContent = "Turn off";
+    $("mic-sub").textContent = "Listening on this device only. Tap a drum to check it’s picking you up.";
+  } catch (e) {
+    alert("Couldn’t access the microphone: " + e.message);
   }
 }
+function stopMic() {
+  if (state.calibrating) stopCalibration();
+  engine.stop();
+  $("mic-bar").classList.remove("on");
+  $("mic-label").textContent = "Mic is off";
+  $("mic-btn").textContent = "Turn on mic";
+  $("mic-sub").textContent = "DrumCoach hears your drums through this device. Everything runs on your device — nothing is recorded or sent anywhere.";
+  $("mic-level").style.width = "0%";
+}
+$("mic-btn").addEventListener("click", () => engine.running ? stopMic() : startMic());
 
-metro.onBeat((index) => {
-  const dots = beatDots.children;
-  if (!dots.length) return;
-  const pos = index % metro.beatsPerBar;
-  for (const d of dots) d.classList.remove("on");
-  if (dots[pos]) dots[pos].classList.add("on");
-});
-
-$("metro-btn").addEventListener("click", () => {
-  if (!engine.ctx) { alert("Start the microphone first (it powers the audio clock)."); return; }
-  metro.setContext(engine.ctx);
-  metro.toggle();
-  $("metro-btn").textContent = metro.running ? "■ Stop" : "▶ Start";
-  $("metro-btn").classList.toggle("active", metro.running);
-});
-
+// ===========================================================================
+// METRONOME (Set your beat)
+// ===========================================================================
+let bpm = 88;
 function setBpm(v) {
-  v = Math.max(30, Math.min(300, Math.round(v)));
-  metro.setBpm(v);
-  $("bpm-input").value = v;
-  $("bpm-range").value = Math.max(40, Math.min(220, v));
+  bpm = Math.max(40, Math.min(208, Math.round(v)));
+  $("bpm-num").textContent = bpm;
+  $("pat-bpm").textContent = bpm;
+  metro.setBpm(bpm);
+  player.bpm = bpm;
 }
-$("bpm-input").addEventListener("change", (e) => setBpm(+e.target.value));
-$("bpm-range").addEventListener("input", (e) => setBpm(+e.target.value));
-$("bpm-up").addEventListener("click", () => setBpm(metro.bpm + 1));
-$("bpm-down").addEventListener("click", () => setBpm(metro.bpm - 1));
+$("bpm-down").addEventListener("click", () => setBpm(bpm - 2));
+$("bpm-up").addEventListener("click", () => setBpm(bpm + 2));
+
+function buildBeatDots() {
+  const el = $("beat-dots"); el.innerHTML = "";
+  for (let i = 0; i < metro.beatsPerBar; i++) {
+    const d = document.createElement("span");
+    d.className = "b" + (i === 0 ? " lead" : "");
+    el.appendChild(d);
+  }
+}
+metro.onBeat((index) => {
+  const dots = $("beat-dots").children;
+  for (const d of dots) d.classList.remove("active");
+  const pos = index % metro.beatsPerBar;
+  if (dots[pos]) dots[pos].classList.add("active");
+});
+
+$("metro-play").addEventListener("click", () => {
+  ensureAudio();
+  metro.setContext(audioCtx);
+  metro.toggle();
+  const b = $("metro-play");
+  b.classList.toggle("playing", metro.running);
+  b.textContent = metro.running ? "⏸ Stop the beat" : "▶ Start the beat";
+  if (metro.running) revealMetrics();
+  else for (const d of $("beat-dots").children) d.classList.remove("active");
+});
 
 $("beats-select").addEventListener("change", (e) => {
   const n = +e.target.value;
   metro.setBeatsPerBar(n);
   seq.setBeatsPerBar(n);
-  rebuildBeatDots();
-  buildSequencer();
+  buildBeatDots();
+  pruneActive();
+  buildGrid();
 });
+$("click-vol").addEventListener("input", (e) => { metro.volume = +e.target.value / 100; });
 
-$("metro-vol").addEventListener("input", (e) => { metro.volume = +e.target.value; });
+// ===========================================================================
+// PLAY ALONG (feedback)
+// ===========================================================================
+let metricsShown = false;
+function revealMetrics() {
+  if (metricsShown) return;
+  metricsShown = true;
+  $("fb-empty").hidden = true;
+  $("fb-metrics").hidden = false;
+}
+function setMetric(id, html, cls) {
+  const el = $(id);
+  el.innerHTML = html;
+  el.className = "v" + (cls ? " " + cls : "");
+}
+function updateStats() {
+  if (!metricsShown) return;
+  const b = timing.estimateBPM();
+  setMetric("m-tempo", b ? `${b} <small>BPM</small>` : "—", b ? "" : "dim");
 
-// ==========================================================================
-// Pattern sequencer grid
-// ==========================================================================
-const seqEl = $("sequencer");
+  const st = timing.steadiness();
+  if (st == null) setMetric("m-intime", "—", "dim");
+  else if (st >= 0.85) setMetric("m-intime", "Locked", "good");
+  else if (st >= 0.6) setMetric("m-intime", "Steady", "good");
+  else if (st >= 0.35) setMetric("m-intime", "Loose", "");
+  else setMetric("m-intime", "Wobbly", "warn");
 
-function buildSequencer() {
-  seqEl.style.setProperty("--steps", seq.totalSteps);
-  seqEl.innerHTML = "";
+  const dr = timing.drift();
+  if (!dr) setMetric("m-drift", "—", "dim");
+  else setMetric("m-drift", `${dr.ms > 0 ? "+" : ""}${dr.ms} <small>ms</small>`,
+    Math.abs(dr.ms) <= 18 ? "good" : "warn");
 
-  for (const voice of seq.voiceKeys) {
-    const row = document.createElement("div");
-    row.className = "seq-row";
+  const tt = timing.tightnessMs();
+  setMetric("m-tight", tt == null ? "—" : `${tt} <small>ms</small>`, tt == null ? "dim" : "");
+}
 
-    const label = document.createElement("div");
-    label.className = "seq-label";
-    const play = document.createElement("button");
-    play.className = "seq-play";
-    play.title = `Play ${VOICE_LABEL[voice]} sample`;
-    play.setAttribute("aria-label", `Play ${VOICE_LABEL[voice]} sample`);
-    play.innerHTML = drumIconSvg(voice);
-    play.addEventListener("click", () => {
-      synth.play(voice);
-      play.classList.add("playing");
-      setTimeout(() => play.classList.remove("playing"), 160);
-    });
-    const name = document.createElement("span");
-    name.className = "seq-name";
-    name.textContent = VOICE_LABEL[voice];
-    label.append(play, name);
-    row.appendChild(label);
+// tooltips
+document.querySelectorAll(".info").forEach((btn) => {
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const id = "tip-" + btn.dataset.tip;
+    document.querySelectorAll(".tip").forEach((t) => { if (t.id !== id) t.classList.remove("show"); });
+    $(id).classList.toggle("show");
+  });
+});
+document.addEventListener("click", () => document.querySelectorAll(".tip").forEach((t) => t.classList.remove("show")));
 
-    const cells = document.createElement("div");
-    cells.className = "seq-cells";
-    cells.style.setProperty("--steps", seq.totalSteps);
+// ===========================================================================
+// PATTERNS
+// ===========================================================================
+const gridEl = $("grid");
 
-    for (let step = 0; step < seq.totalSteps; step++) {
-      const cell = document.createElement("button");
-      cell.className = "cell";
-      cell.dataset.voice = voice;
-      cell.dataset.step = step;
-      // Visual emphasis on beat / bar boundaries.
-      if (step % seq.stepsPerBeat === 0) cell.classList.add("beat");
-      if (step % seq.stepsPerBar === 0) cell.classList.add("bar");
-      if (seq.isActive(voice, step)) cell.classList.add("on");
-      cell.addEventListener("click", () => {
-        const on = seq.toggle(voice, step);
-        cell.classList.toggle("on", on);
-      });
-      cells.appendChild(cell);
-    }
-    row.appendChild(cells);
-    seqEl.appendChild(row);
-  }
-
-  const meta = $("pattern-meta");
-  if (meta) {
-    const perBar = seq.stepsPerBar;
-    meta.textContent =
-      `${seq.bars} bar${seq.bars === 1 ? "" : "s"} · ${perBar} slots/bar · ` +
-      `${seq.totalSteps} slots total — scroll sideways to see them all`;
+function pruneActive() {
+  const n = seq.totalSteps;
+  for (const key of [...seq.active]) {
+    if (+key.split(":")[1] >= n) seq.active.delete(key);
   }
 }
+
+function shownVoices() { return ORDER.filter((v) => state.shown.has(v)); }
+
+function buildGrid() {
+  const n = seq.totalSteps, beatLen = seq.stepsPerBeat;
+  gridEl.innerHTML = "";
+
+  // count row
+  const cr = document.createElement("div");
+  cr.className = "grow countrow";
+  const sp = document.createElement("div"); sp.className = "vlabel"; cr.appendChild(sp);
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement("div"); c.className = "cell"; c.dataset.step = i;
+    if (i % beatLen === 0) { c.classList.add("beatnum"); c.textContent = (i / beatLen) % seq.beatsPerBar + 1; }
+    cr.appendChild(c);
+  }
+  gridEl.appendChild(cr);
+
+  // voice rows
+  for (const v of shownVoices()) {
+    const row = document.createElement("div"); row.className = "grow";
+    const lbl = document.createElement("div"); lbl.className = "vlabel";
+
+    const play = document.createElement("button");
+    play.className = "vplay"; play.title = `Play ${VOICE_META[v].label}`;
+    play.style.color = VOICE_META[v].color; play.innerHTML = iconFor(v);
+    play.onclick = () => { ensureAudio(); synth.play(v); play.classList.add("playing"); setTimeout(() => play.classList.remove("playing"), 150); };
+    lbl.appendChild(play);
+
+    const name = document.createElement("span"); name.className = "vname"; name.textContent = VOICE_META[v].label;
+    lbl.appendChild(name);
+
+    if (EXTRA.includes(v)) {
+      const rm = document.createElement("button");
+      rm.className = "vremove"; rm.title = "Remove row"; rm.textContent = "×";
+      rm.onclick = () => toggleExtra(v, false);
+      lbl.appendChild(rm);
+    }
+    row.appendChild(lbl);
+
+    for (let i = 0; i < n; i++) {
+      const c = document.createElement("button");
+      c.className = "cell" + (i % beatLen === 0 ? " beat" : "");
+      c.dataset.step = i; c.style.setProperty("--vc", VOICE_META[v].color);
+      if (seq.isActive(v, i)) c.classList.add("on");
+      c.onclick = () => c.classList.toggle("on", seq.toggle(v, i));
+      row.appendChild(c);
+    }
+    gridEl.appendChild(row);
+  }
+}
+
+// subdivision
+$("sub-seg").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  $("sub-seg").querySelectorAll("button").forEach((x) => x.classList.remove("sel"));
+  b.classList.add("sel");
+  seq.setStepsPerBeat(+b.dataset.sub);
+  pruneActive(); buildGrid();
+});
 
 $("bars-select").addEventListener("change", (e) => {
-  seq.setBars(+e.target.value);
-  buildSequencer();
+  seq.setBars(+e.target.value); pruneActive(); buildGrid();
 });
+$("clear-pattern").addEventListener("click", () => { seq.clearPattern(); buildGrid(); });
 
-$("clear-pattern").addEventListener("click", () => {
-  seq.clearPattern();
-  buildSequencer();
-});
-
-$("practice-btn").addEventListener("click", () => {
-  state.practice = !state.practice;
-  seq.resetScore();
-  const btn = $("practice-btn");
-  btn.textContent = state.practice ? "🎯 Practice on" : "🎯 Practice off";
-  btn.classList.toggle("active", state.practice);
-});
-
-// --- Pattern playback (synth) ----------------------------------------------
-function highlightPlayColumn(step) {
-  for (const c of seqEl.querySelectorAll(".cell.playcol")) c.classList.remove("playcol");
-  if (step == null || step < 0) return;
-  for (const c of seqEl.querySelectorAll(`.cell[data-step="${step}"]`)) c.classList.add("playcol");
+// add drums
+function buildDrumAdder() {
+  const el = $("drum-adder"); el.innerHTML = "";
+  for (const v of EXTRA) {
+    const chip = document.createElement("button");
+    chip.className = "drum-chip" + (state.shown.has(v) ? " added" : "");
+    chip.style.color = state.shown.has(v) ? "#fff" : VOICE_META[v].color;
+    chip.innerHTML = `<span class="ic">${iconFor(v)}</span>${VOICE_META[v].label}`;
+    chip.onclick = () => toggleExtra(v, !state.shown.has(v));
+    el.appendChild(chip);
+  }
 }
+function toggleExtra(v, on) {
+  if (on) state.shown.add(v); else state.shown.delete(v);
+  buildDrumAdder(); buildGrid();
+}
+$("add-drums").addEventListener("click", () => {
+  const el = $("drum-adder");
+  el.hidden = !el.hidden;
+  $("add-drums").classList.toggle("on-ghost", !el.hidden);
+});
 
-player.onStep = (step) => highlightPlayColumn(step);
-player.onStop = () => {
-  $("pattern-play").textContent = "▶ Play";
-  $("pattern-play").classList.add("btn-accent");
-  highlightPlayColumn(null);
-};
-
+// pattern playback
+player.onStep = (step) => highlightCol(step);
+player.onStop = () => { $("pattern-play").classList.remove("playing"); $("pattern-play").textContent = "▶ Play pattern"; highlightCol(null); };
+function highlightCol(step) {
+  gridEl.querySelectorAll(".cell.ph").forEach((c) => c.classList.remove("ph"));
+  if (step == null) return;
+  gridEl.querySelectorAll(`.cell[data-step="${step}"]`).forEach((c) => c.classList.add("ph"));
+}
 $("pattern-play").addEventListener("click", () => {
+  ensureAudio();
   player.toggle();
-  const playing = player.playing;
-  $("pattern-play").textContent = playing ? "■ Stop" : "▶ Play";
-  $("pattern-play").classList.toggle("btn-accent", !playing);
-  if (!playing) highlightPlayColumn(null);
+  $("pattern-play").classList.toggle("playing", player.playing);
+  $("pattern-play").textContent = player.playing ? "⏸ Playing pattern" : "▶ Play pattern";
+  if (!player.playing) highlightCol(null);
 });
-
-$("pattern-loop").addEventListener("change", (e) => { player.loop = e.target.checked; });
-
-$("pattern-bpm").addEventListener("change", (e) => {
-  const v = Math.max(30, Math.min(300, Math.round(+e.target.value) || 100));
-  player.bpm = v;
-  e.target.value = v;
+$("loop-btn").addEventListener("click", function () {
+  this.classList.toggle("on-ghost");
+  player.loop = this.classList.contains("on-ghost");
 });
+player.loop = false;
 
-// --- Saved patterns (per kit, localStorage) --------------------------------
-function activeKitLabel() {
-  const rec = kits.activeId() && kits.get(kits.activeId());
-  return rec ? `“${rec.name}”` : "the default kit";
+// practice switch + score
+$("practice-switch").addEventListener("click", function () {
+  state.practice = this.classList.toggle("on");
+  seq.resetScore();
+  $("score").hidden = !state.practice;
+  if (!state.practice) $("score").innerHTML = "";
+});
+function updateScore() {
+  const acc = seq.accuracy();
+  const el = $("score");
+  if (!acc) { el.innerHTML = `<span class="pill">Play the pattern with the beat on…</span>`; return; }
+  el.innerHTML =
+    `<span class="pill big ${acc.percent >= 80 ? "good" : acc.percent >= 50 ? "" : "bad"}">${acc.percent}% accurate</span>` +
+    `<span class="pill">✓ ${acc.hit}</span><span class="pill">⟨ ${acc.early}</span>` +
+    `<span class="pill">⟩ ${acc.late}</span><span class="pill">✗ ${acc.miss}</span>`;
 }
 
+// ===========================================================================
+// SAVED PATTERNS (per kit)
+// ===========================================================================
 function refreshPatternSelect() {
   const sel = $("pattern-select");
   const list = patterns.list(kits.activeId());
   const active = patterns.activeId();
   sel.innerHTML = "";
   const blank = document.createElement("option");
-  blank.value = "";
-  blank.textContent = list.length ? "— select a pattern —" : "— none saved —";
+  blank.value = ""; blank.textContent = list.length ? "— load a pattern —" : "— none saved —";
   sel.appendChild(blank);
   for (const p of list) {
-    const o = document.createElement("option");
-    o.value = p.id;
-    o.textContent = p.name;
-    sel.appendChild(o);
+    const o = document.createElement("option"); o.value = p.id; o.textContent = p.name; sel.appendChild(o);
   }
   sel.value = active && patterns.get(active) && sel.querySelector(`option[value="${active}"]`) ? active : "";
   $("pattern-delete").disabled = !sel.value;
 }
-
-// Apply a saved pattern's data to the live grid + keep the UI in sync.
 function applyPattern(data) {
   seq.import(data);
+  // sync UI to the loaded pattern's dimensions + voices
   metro.setBeatsPerBar(seq.beatsPerBar);
-  $("beats-select").value = seq.beatsPerBar;
-  $("bars-select").value = seq.bars;
-  rebuildBeatDots();
-  buildSequencer();
+  $("beats-select").value = String(seq.beatsPerBar);
+  $("bars-select").value = String(seq.bars);
+  $("sub-seg").querySelectorAll("button").forEach((x) => x.classList.toggle("sel", +x.dataset.sub === seq.stepsPerBeat));
+  state.shown = new Set(DEFAULT_SHOWN);
+  for (const key of seq.active) { const v = key.split(":")[0]; if (EXTRA.includes(v)) state.shown.add(v); }
+  buildBeatDots(); buildDrumAdder(); buildGrid();
 }
-
 function loadPattern(id) {
   const rec = id && patterns.get(id);
   if (!rec) { patterns.setActive(null); refreshPatternSelect(); return; }
@@ -353,370 +379,227 @@ function loadPattern(id) {
   refreshPatternSelect();
   $("pattern-store-status").textContent = `Loaded “${rec.name}”.`;
 }
-
 $("pattern-select").addEventListener("change", (e) => loadPattern(e.target.value));
-
 $("pattern-save-btn").addEventListener("click", () => {
   const name = $("pattern-name").value.trim();
-  if (!name) { $("pattern-store-status").textContent = "Type a name first, then press Save."; $("pattern-name").focus(); return; }
+  if (!name) { $("pattern-store-status").textContent = "Type a name first, then Save."; $("pattern-name").focus(); return; }
   const rec = patterns.save(name, kits.activeId(), seq.export());
   refreshPatternSelect();
-  $("pattern-store-status").textContent = `Saved “${rec.name}” for ${activeKitLabel()}.`;
+  $("pattern-store-status").textContent = `Saved “${rec.name}”.`;
 });
-
-$("pattern-delete").addEventListener("click", () => {
-  const id = $("pattern-select").value;
-  const rec = id && patterns.get(id);
-  if (!rec) return;
-  if (!confirm(`Delete saved pattern “${rec.name}”?`)) return;
-  patterns.remove(id);
-  $("pattern-name").value = "";
+let patDelArmed = false, patDelT;
+$("pattern-delete").addEventListener("click", function () {
+  const id = $("pattern-select").value; const rec = id && patterns.get(id); if (!rec) return;
+  if (!patDelArmed) {
+    patDelArmed = true; this.classList.add("armed"); this.textContent = "Tap again";
+    patDelT = setTimeout(() => { patDelArmed = false; this.classList.remove("armed"); this.textContent = "Delete"; }, 2500);
+    return;
+  }
+  clearTimeout(patDelT); patDelArmed = false; this.classList.remove("armed"); this.textContent = "Delete";
+  patterns.remove(id); $("pattern-name").value = "";
   refreshPatternSelect();
   $("pattern-store-status").textContent = `Deleted “${rec.name}”.`;
 });
 
-// Patterns are kit-scoped, so when the active kit changes the saved-pattern
-// list must follow it (without disturbing the current grid).
-function onActiveKitChanged() {
-  patterns.setActive(null);
-  $("pattern-name").value = "";
-  $("pattern-store-status").textContent = "";
-  refreshPatternSelect();
-}
-
-// ==========================================================================
-// Calibration
-// ==========================================================================
+// ===========================================================================
+// SETTINGS — calibration
+// ===========================================================================
 const calGrid = $("cal-grid");
 const calToggle = $("cal-toggle");
-
-function buildCalibration() {
+calToggle.classList.add("cal-toggle");
+function buildCalGrid() {
   calGrid.innerHTML = "";
-  for (const voice of seq.voiceKeys) {
-    const btn = document.createElement("button");
-    btn.className = "cal-btn";
-    btn.textContent = VOICE_LABEL[voice];
-    btn.dataset.voice = voice;
-    btn.addEventListener("click", () => selectCalVoice(voice));
-    calGrid.appendChild(btn);
+  for (const v of ORDER) {
+    const chip = document.createElement("button");
+    chip.className = "cal-chip"; chip.dataset.voice = v;
+    chip.innerHTML = `<span style="color:${VOICE_META[v].color};display:inline-flex">${iconFor(v)}</span>${VOICE_META[v].label}`;
+    chip.onclick = () => selectCalVoice(v);
+    calGrid.appendChild(chip);
   }
 }
-
-// Step 1: choose which drum to calibrate (does not start recording yet).
-function selectCalVoice(voice) {
-  if (state.calibrating) return; // can't switch mid-recording
-  state.calVoice = voice;
-  for (const b of calGrid.children) b.classList.toggle("selected", b.dataset.voice === voice);
+function selectCalVoice(v) {
+  if (state.calibrating) return;
+  state.calVoice = v;
+  for (const c of calGrid.children) c.classList.toggle("sel", c.dataset.voice === v);
   calToggle.disabled = false;
-  $("cal-status").textContent =
-    `Ready to calibrate ${VOICE_LABEL[voice]} — press Start, then hit it a few times.`;
+  $("cal-status").textContent = `Ready — press Start, then hit ${VOICE_META[v].label} a few times.`;
 }
-
-// Step 2: explicit Start / Stop so the player always knows the mode.
-calToggle.addEventListener("click", () => {
-  if (state.calibrating) stopCalibration();
-  else startCalibration();
-});
-
+calToggle.addEventListener("click", () => state.calibrating ? stopCalibration() : startCalibration());
 function startCalibration() {
-  if (!engine.running) { alert("Start the microphone first."); return; }
+  if (!engine.running) { alert("Turn on the mic first."); return; }
   if (!state.calVoice) { alert("Pick a drum to calibrate first."); return; }
-
-  state.calibrating = state.calVoice;
-  state.calSamples = [];
-  engine.suspendVoiceFilter = true; // capture every drum hit during calibration
-
-  calToggle.textContent = "■ Stop calibration";
-  calToggle.classList.remove("cal-start");
-  calToggle.classList.add("recording");
-  for (const b of calGrid.children) b.disabled = true; // lock selection
-
-  $("cal-status").textContent = "";
+  state.calibrating = state.calVoice; state.calSamples = []; engine.suspendVoiceFilter = true;
+  calToggle.textContent = "■ Stop"; calToggle.classList.add("recording");
+  for (const c of calGrid.children) c.disabled = true;
   $("cal-banner").hidden = false;
-  $("cal-banner-text").textContent =
-    `Recording ${VOICE_LABEL[state.calibrating]} — hit it a few times, then press Stop`;
+  $("cal-banner-text").textContent = `Recording ${VOICE_META[state.calibrating].label} — hit it a few times`;
   updateCalBanner();
 }
-
 function updateCalBanner() {
   const n = state.calSamples.length;
-  $("cal-count").textContent = `${n} hit${n === 1 ? "" : "s"} captured`;
+  $("cal-count").textContent = `${n} hit${n === 1 ? "" : "s"}`;
 }
-
 function stopCalibration() {
-  const voice = state.calibrating;
-  const n = state.calSamples.length;
-
-  calToggle.textContent = "● Start calibration";
-  calToggle.classList.add("cal-start");
-  calToggle.classList.remove("recording");
-  for (const b of calGrid.children) b.disabled = false;
-  $("cal-banner").hidden = true;
-  state.calibrating = null;
-  engine.suspendVoiceFilter = false;
-
-  if (n === 0) {
-    $("cal-status").textContent =
-      `No hits detected for ${VOICE_LABEL[voice]}. Drag sensitivity left and play a little louder, then retry.`;
-    return;
-  }
-
-  // Average the collected feature samples into the voice's profile centroid.
-  const avg = {};
-  const keys = ["sub", "low", "lowMid", "mid", "high", "veryHigh", "centroidN", "centroid", "level"];
+  const voice = state.calibrating, n = state.calSamples.length;
+  calToggle.textContent = "● Start calibration"; calToggle.classList.remove("recording");
+  for (const c of calGrid.children) c.disabled = false;
+  $("cal-banner").hidden = true; state.calibrating = null; engine.suspendVoiceFilter = false;
+  if (n === 0) { $("cal-status").textContent = `No hits heard for ${VOICE_META[voice].label}. Play a little louder and retry.`; return; }
+  const avg = {}, keys = ["sub", "low", "lowMid", "mid", "high", "veryHigh", "centroidN", "centroid", "level"];
   for (const k of keys) avg[k] = state.calSamples.reduce((s, f) => s + (f[k] ?? 0), 0) / n;
-  engine.calibrateVoice(voice, avg);
-  state.calSamples = [];
-  $("cal-status").textContent = `✓ ${VOICE_LABEL[voice]} calibrated from ${n} hit${n === 1 ? "" : "s"}.`;
-
-  // Persist: if a named kit is active, auto-save into it; otherwise mark the
-  // live calibration as unsaved so the player can name + Save it as a new kit.
+  engine.calibrateVoice(voice, avg); state.calSamples = [];
+  $("cal-status").textContent = `✓ ${VOICE_META[voice].label} calibrated from ${n} hit${n === 1 ? "" : "s"}.`;
   const activeId = kits.activeId();
-  if (activeId && kits.get(activeId)) {
-    const rec = kits.updateProfiles(activeId, engine.exportProfiles());
-    setKitStatus(`Saved ${VOICE_LABEL[voice]} into kit “${rec.name}”.`);
-  } else {
-    state.kitDirty = true;
-    setKitStatus("Unsaved calibration — name this kit and press Save to keep it.");
-  }
+  if (activeId && kits.get(activeId)) { kits.updateProfiles(activeId, engine.exportProfiles()); setKitStatus(`Saved ${VOICE_META[voice].label} into the active kit.`); }
+  else { state.kitDirty = true; setKitStatus("Unsaved calibration — name a kit and Save to keep it."); }
 }
 
-// --- Kit profiles (localStorage-persisted calibration sets) ----------------
+// ===========================================================================
+// SETTINGS — kit profiles
+// ===========================================================================
+function setKitStatus(m) { $("kit-status").textContent = m; }
 function refreshKitSelect() {
-  const sel = $("kit-select");
-  const activeId = kits.activeId();
+  const sel = $("kit-select"), activeId = kits.activeId();
   sel.innerHTML = "";
-
-  const def = document.createElement("option");
-  def.value = "";
-  def.textContent = "Default (uncalibrated)";
-  sel.appendChild(def);
-
-  for (const k of kits.list()) {
-    const o = document.createElement("option");
-    o.value = k.id;
-    o.textContent = k.name;
-    sel.appendChild(o);
-  }
+  const def = document.createElement("option"); def.value = ""; def.textContent = "Default (uncalibrated)"; sel.appendChild(def);
+  for (const k of kits.list()) { const o = document.createElement("option"); o.value = k.id; o.textContent = k.name; sel.appendChild(o); }
   sel.value = activeId && kits.get(activeId) ? activeId : "";
   $("kit-delete").disabled = !sel.value;
 }
-
-function setKitStatus(msg) { $("kit-status").textContent = msg; }
-
-// Load a kit by id ("" = default/uncalibrated) into the live engine.
-function loadKit(id) {
-  if (!id) {
-    engine.resetProfiles();
-    kits.setActive(null);
-    state.kitDirty = false;
-    refreshKitSelect();
-    onActiveKitChanged();
-    setKitStatus("Using default (uncalibrated) profiles.");
-    return;
-  }
-  const rec = kits.get(id);
-  if (!rec) { refreshKitSelect(); return; }
-  engine.importProfiles(rec.profiles);
-  kits.setActive(id);
-  state.kitDirty = false;
-  $("kit-name").value = rec.name;
-  refreshKitSelect();
-  onActiveKitChanged();
-  setKitStatus(`Loaded kit “${rec.name}”.`);
+function onActiveKitChanged() {
+  patterns.setActive(null); $("pattern-name").value = ""; $("pattern-store-status").textContent = ""; refreshPatternSelect();
 }
-
+function loadKit(id) {
+  if (!id) { engine.resetProfiles(); kits.setActive(null); state.kitDirty = false; refreshKitSelect(); onActiveKitChanged(); setKitStatus("Using default (uncalibrated) profiles."); return; }
+  const rec = kits.get(id); if (!rec) { refreshKitSelect(); return; }
+  engine.importProfiles(rec.profiles); kits.setActive(id); state.kitDirty = false;
+  $("kit-name").value = rec.name; refreshKitSelect(); onActiveKitChanged(); setKitStatus(`Loaded kit “${rec.name}”.`);
+}
 $("kit-select").addEventListener("change", (e) => loadKit(e.target.value));
-
 $("kit-save").addEventListener("click", () => {
-  const name = $("kit-name").value.trim();
-  if (!name) { setKitStatus("Type a name first, then press Save."); $("kit-name").focus(); return; }
-  const rec = kits.save(name, engine.exportProfiles());
-  state.kitDirty = false;
-  refreshKitSelect();
-  onActiveKitChanged(); // the new kit is now active → its (empty) pattern list
-  setKitStatus(`Saved kit “${rec.name}”. It will load automatically next time.`);
+  const name = $("kit-name").value.trim(); if (!name) { setKitStatus("Type a name first, then Save."); $("kit-name").focus(); return; }
+  const rec = kits.save(name, engine.exportProfiles()); state.kitDirty = false; refreshKitSelect(); onActiveKitChanged();
+  setKitStatus(`Saved kit “${rec.name}”. It loads automatically next time.`);
 });
-
 $("kit-delete").addEventListener("click", () => {
-  const id = $("kit-select").value;
-  const rec = id && kits.get(id);
-  if (!rec) return;
-  if (!confirm(`Delete saved kit “${rec.name}”? This cannot be undone.`)) return;
-  kits.remove(id);
-  patterns.removeForKit(id); // drop the deleted kit's patterns too
-  engine.resetProfiles();
-  $("kit-name").value = "";
-  state.kitDirty = false;
-  refreshKitSelect();
-  onActiveKitChanged();
-  setKitStatus(`Deleted “${rec.name}”. Back to default profiles.`);
+  const id = $("kit-select").value, rec = id && kits.get(id); if (!rec) return;
+  if (!confirm(`Delete saved kit “${rec.name}”?`)) return;
+  kits.remove(id); patterns.removeForKit(id); engine.resetProfiles(); $("kit-name").value = "";
+  refreshKitSelect(); onActiveKitChanged(); setKitStatus(`Deleted “${rec.name}”. Back to default profiles.`);
 });
-
-// "Forget calibration": revert the live engine to defaults without deleting any
-// saved kits. Just drops the current (possibly unsaved) calibration.
 $("forget-cal").addEventListener("click", () => {
   if (state.calibrating) stopCalibration();
-  engine.resetProfiles();
-  kits.setActive(null);
-  state.kitDirty = false;
-  $("kit-name").value = "";
-  refreshKitSelect();
-  onActiveKitChanged();
-  setKitStatus("Calibration forgotten — using default profiles. Saved kits are untouched.");
-  $("cal-status").textContent = "Pick a drum to calibrate.";
+  engine.resetProfiles(); kits.setActive(null); $("kit-name").value = "";
+  refreshKitSelect(); onActiveKitChanged(); setKitStatus("Reverted to default profiles. Saved kits are untouched.");
 });
 
-// ==========================================================================
-// Render loop — drives notation + live stat readouts
-// ==========================================================================
-function render() {
-  const now = engine.now();
+// ===========================================================================
+// SETTINGS — detection
+// ===========================================================================
+$("sens-range").addEventListener("input", (e) => { engine.sensitivity = 1 / +e.target.value; });
+$("voice-mode").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  $("voice-mode").querySelectorAll("button").forEach((x) => x.classList.remove("sel"));
+  b.classList.add("sel"); engine.setVoiceRejection(b.dataset.mode);
+});
 
-  // Notation: beats grid + pattern ghosts.
-  notation.setBeats(metro.beatsInWindow(now, notation.windowSeconds));
-  const grid = metro.getGrid();
-  notation.setTargets(grid ? seq.targetsInWindow(now, grid, notation.windowSeconds, 0) : []);
-  notation.render(now);
-
-  // Scoring bookkeeping.
-  if (state.practice && grid) {
-    seq.update(now, grid);
-    updateScore();
-  }
-
-  updateStats();
-  requestAnimationFrame(render);
-}
-
-function updateStats() {
-  const bpm = timing.estimateBPM();
-  $("bpm-value").textContent = bpm ?? "—";
-
-  const steady = timing.steadiness();
-  $("steady-value").textContent = steady == null ? "—" : `${Math.round(steady * 100)}%`;
-
-  const drift = timing.drift();
-  const driftEl = $("drift-value");
-  if (!drift) {
-    driftEl.textContent = "—";
-    driftEl.className = "stat-value";
-    $("drift-hint").textContent = metro.running
-      ? "Keep playing — gathering timing data…"
-      : "Play along with the metronome to see drift.";
-  } else {
-    driftEl.textContent = `${drift.ms > 0 ? "+" : ""}${drift.ms} ms`;
-    driftEl.className = "stat-value " +
-      (Math.abs(drift.ms) <= 18 ? "good" : drift.ms > 0 ? "late" : "early");
-    $("drift-hint").textContent =
-      drift.label === "on time" ? "Nicely locked in! 🎯" :
-      `You are ${drift.label}. Aim ${drift.ms > 0 ? "slightly earlier" : "slightly later"}.`;
-  }
-
-  const tight = timing.tightnessMs();
-  $("tight-value").textContent = tight == null ? "—" : tight;
-}
-
-function updateScore() {
-  const acc = seq.accuracy();
-  const el = $("score");
-  if (!acc) {
-    el.innerHTML = `<span class="score-pill">Listening… play the pattern with the metronome.</span>`;
-    return;
-  }
-  el.innerHTML = `
-    <span class="score-pill big ${acc.percent >= 80 ? "good" : acc.percent >= 50 ? "ok" : "bad"}">
-      ${acc.percent}% accurate
-    </span>
-    <span class="score-pill">✓ ${acc.hit} clean</span>
-    <span class="score-pill early">⟨ ${acc.early} early</span>
-    <span class="score-pill late">⟩ ${acc.late} late</span>
-    <span class="score-pill miss">✗ ${acc.miss} missed</span>
-    <span class="score-pill">＋ ${acc.extra} extra</span>
-  `;
-}
-
-// ==========================================================================
-// Boot
-// ==========================================================================
-rebuildBeatDots();
-buildSequencer();
-buildCalibration();
-
-// Restore the last-used kit profile from localStorage, if any.
-(function restoreKit() {
-  const activeId = kits.activeId();
-  const rec = activeId && kits.get(activeId);
-  if (rec) {
-    engine.importProfiles(rec.profiles);
-    $("kit-name").value = rec.name;
-    setKitStatus(`Loaded saved kit “${rec.name}”.`);
-  }
-  refreshKitSelect();
-})();
-
-// Restore the last-used pattern, but only if it belongs to the active kit.
-(function restorePattern() {
-  const activeId = patterns.activeId();
-  const rec = activeId && patterns.get(activeId);
-  if (rec && (rec.kitId || null) === (kits.activeId() || null)) {
-    applyPattern(rec.data);
-    $("pattern-name").value = rec.name;
-    $("pattern-store-status").textContent = `Restored “${rec.name}”.`;
-  } else if (rec) {
-    patterns.setActive(null); // last pattern was for a different kit
-  }
-  refreshPatternSelect();
-})();
-
-// --- Cloud sync (optional; off unless Firebase is configured) --------------
-const syncBtn = $("sync-btn");
-
-// Called after cloud data merges into the local stores: refresh the lists and
-// keep the engine's profiles in step with the (possibly updated) active kit.
+// ===========================================================================
+// CLOUD SYNC
+// ===========================================================================
 function onCloudData() {
-  refreshKitSelect();
-  refreshPatternSelect();
-  const activeId = kits.activeId();
-  const rec = activeId && kits.get(activeId);
+  refreshKitSelect(); refreshPatternSelect();
+  const id = kits.activeId(), rec = id && kits.get(id);
   if (rec) engine.importProfiles(rec.profiles);
 }
-
 function updateSyncUi(status) {
-  if (!syncBtn) return;
-  if (status.state === "disabled") { syncBtn.hidden = true; return; }
-  syncBtn.hidden = false;
-  switch (status.state) {
-    case "connecting":
-      syncBtn.textContent = "☁ …"; syncBtn.disabled = true;
-      syncBtn.title = "Connecting to sync…"; break;
-    case "anonymous":
-      syncBtn.disabled = false; syncBtn.textContent = "☁ Sync across devices";
-      syncBtn.title = "Save your kits & patterns to your Google account"; break;
-    case "signed-in": {
-      syncBtn.disabled = false;
-      const name = status.user?.displayName || status.user?.email || "Synced";
-      syncBtn.textContent = `☁ ${name}`;
-      syncBtn.title = "Synced across devices · click to sign out"; break;
-    }
-    case "error":
-      syncBtn.disabled = false; syncBtn.textContent = "☁ Sync (retry)";
-      syncBtn.title = "Sync error — click to try again"; break;
-  }
+  const btn = $("sync-btn");
+  if (status.state === "disabled") { btn.hidden = true; return; }
+  btn.hidden = false;
+  if (status.state === "connecting") { btn.textContent = "☁ …"; btn.disabled = true; return; }
+  btn.disabled = false;
+  if (status.state === "anonymous") { btn.textContent = "☁ Sync"; btn.title = "Save & sync your kits and patterns to your Google account"; }
+  else if (status.state === "signed-in") { btn.textContent = `☁ ${status.user?.displayName || "Synced"}`; btn.title = "Synced · tap to sign out"; }
+  else if (status.state === "error") { btn.textContent = "☁ Retry"; }
 }
-
-syncBtn?.addEventListener("click", () => {
+$("sync-btn").addEventListener("click", () => {
   const st = cloud.status();
-  if (st.state === "anonymous" || st.state === "error") {
-    cloud.signInWithGoogle();
-  } else if (st.state === "signed-in") {
-    if (confirm("Sign out of sync? Your kits and patterns stay on this device and sync again when you sign back in.")) {
-      cloud.signOutToGuest();
-    }
-  }
+  if (st.state === "anonymous" || st.state === "error") cloud.signInWithGoogle();
+  else if (st.state === "signed-in") { if (confirm("Sign out of sync? Your data stays on this device.")) cloud.signOutToGuest(); }
 });
 
+// ===========================================================================
+// ONBOARDING
+// ===========================================================================
+const OB = [
+  { icon: "🥁", h: "Hi! Ready to drum?", p: "DrumCoach listens while you play and shows whether your timing is steady. Three quick things and you’re off.", primary: "Next" },
+  { icon: "🎙️", h: "Turn on your mic", p: "DrumCoach hears your drums through this device’s microphone. Everything happens on your device — nothing is recorded or sent anywhere.", tag: "Private by design", primary: "Turn on mic", ghost: "Skip" },
+  { icon: "🎯", h: "Set a beat and play", p: "Pick a tempo, start the click, and play along. Watch the timing panel to see if you’re speeding up, slowing down, or right in the pocket. You can calibrate your kit any time for sharper feedback.", primary: "Start drumming" },
+];
+let obStep = 0;
+function buildObDots() { const el = $("ob-dots"); el.innerHTML = ""; OB.forEach((_, i) => { const d = document.createElement("i"); if (i === 0) d.className = "on"; el.appendChild(d); }); }
+function renderOb() {
+  const s = OB[obStep];
+  $("ob-content").innerHTML =
+    `<div class="ob-icon">${s.icon}</div><h3>${s.h}</h3><p>${s.p}</p>` +
+    (s.tag ? `<div class="center"><span class="tag">✓ ${s.tag}</span></div>` : "") +
+    `<div class="ob-actions">${s.ghost ? `<button class="ghost" id="ob-ghost">${s.ghost}</button>` : ""}<button class="primary" id="ob-next">${s.primary}</button></div>`;
+  [...$("ob-dots").children].forEach((d, i) => d.classList.toggle("on", i === obStep));
+  $("ob-next").onclick = obNext;
+  if (s.ghost) $("ob-ghost").onclick = obAdvance;
+}
+function obNext() { if (obStep === 1) startMic(); obAdvance(); }
+function obAdvance() { if (obStep < OB.length - 1) { obStep++; renderOb(); } else closeOb(); }
+function openOb() { obStep = 0; renderOb(); $("overlay").hidden = false; }
+function closeOb() { $("overlay").hidden = true; localStorage.setItem("drumcoach.onboarded.v2", "1"); }
+$("replay-btn").addEventListener("click", openOb);
+
+// ===========================================================================
+// RENDER LOOP
+// ===========================================================================
+function loop() {
+  if (state.practice && metro.getGrid()) { seq.update(nowTime(), metro.getGrid()); updateScore(); }
+  updateStats();
+  requestAnimationFrame(loop);
+}
+
+// ===========================================================================
+// DEFAULT PATTERN + BOOT
+// ===========================================================================
+function seedDefaultBeat() {
+  // basic rock beat at eighths: hats every step, snare on 2&4, kick on 1&3
+  seq.setStepsPerBeat(2); seq.setBeatsPerBar(4); seq.setBars(1);
+  const sub = seq.stepsPerBeat;
+  for (let i = 0; i < seq.totalSteps; i++) seq.active.add(`hihat:${i}`);
+  seq.active.add(`snare:${1 * sub}`); seq.active.add(`snare:${3 * sub}`);
+  seq.active.add(`kick:${0 * sub}`); seq.active.add(`kick:${2 * sub}`);
+}
+
+buildBeatDots();
+buildDrumAdder();
+buildCalGrid();
+
+(function restoreKit() {
+  const id = kits.activeId(), rec = id && kits.get(id);
+  if (rec) { engine.importProfiles(rec.profiles); $("kit-name").value = rec.name; setKitStatus(`Loaded saved kit “${rec.name}”.`); }
+  refreshKitSelect();
+})();
+
+(function restorePattern() {
+  const id = patterns.activeId(), rec = id && patterns.get(id);
+  if (rec && (rec.kitId || null) === (kits.activeId() || null)) {
+    applyPattern(rec.data); $("pattern-name").value = rec.name; $("pattern-store-status").textContent = `Restored “${rec.name}”.`;
+  } else {
+    if (rec) patterns.setActive(null);
+    seedDefaultBeat(); buildGrid();
+  }
+  refreshPatternSelect();
+})();
+
+setBpm(88);
 cloud.onUpdate(onCloudData).onStatus(updateSyncUi);
 cloud.start();
 
-requestAnimationFrame(render);
+if (!localStorage.getItem("drumcoach.onboarded.v2")) { buildObDots(); openOb(); }
+else buildObDots();
+
+requestAnimationFrame(loop);

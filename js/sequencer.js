@@ -31,6 +31,7 @@ export class PatternSequencer {
 
   setBars(n) { this.bars = [1, 2, 4, 8, 16].includes(n) ? n : this.bars; this.resetScore(); }
   setBeatsPerBar(n) { this.beatsPerBar = Math.max(1, Math.min(16, n | 0)); this.resetScore(); }
+  setStepsPerBeat(n) { this.stepsPerBeat = [1, 2, 4].includes(n) ? n : this.stepsPerBeat; this.resetScore(); }
 
   toggle(voice, step) {
     const key = `${voice}:${step}`;
