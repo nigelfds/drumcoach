@@ -42,7 +42,12 @@ const nowTime = () => (audioCtx ? audioCtx.currentTime : performance.now() / 100
 const PARAMS = new URLSearchParams(location.search);
 const LOOPBACK = PARAMS.has("loopback");
 const DEBUG = LOOPBACK || PARAMS.has("debug");
-if (DEBUG) window.__dc = { hits: [], reset() { this.hits = []; }, loopback: LOOPBACK };
+if (DEBUG) window.__dc = {
+  hits: [], reset() { this.hits = []; }, loopback: LOOPBACK,
+  active: () => [...seq.active].sort(),                       // current pattern cells
+  dims: () => ({ bars: seq.bars, beatsPerBar: seq.beatsPerBar, stepsPerBeat: seq.stepsPerBeat }),
+  play: (...voices) => { const t = synth.context().currentTime + 0.04; voices.forEach((v) => synth.playAt(v, t)); },
+};
 
 // --- voices -----------------------------------------------------------------
 const VOICE_META = {
@@ -773,7 +778,10 @@ buildCalGrid();
 
 setBpm(88);
 cloud.onUpdate(onCloudData).onStatus(updateSyncUi);
-cloud.start();
+// Skip cloud sync in loopback/test mode so e2e tests are hermetic (no real
+// Firestore data leaking in and making runs non-deterministic).
+if (LOOPBACK) updateSyncUi({ state: "disabled" });
+else cloud.start();
 
 if (!localStorage.getItem("drumcoach.onboarded.v2")) { buildObDots(); openOb(); }
 else buildObDots();
