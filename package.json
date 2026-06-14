@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test:e2e": "playwright test"
+    "test:e2e": "./test-e2e.sh"
   },
   "keywords": [
     "drums",

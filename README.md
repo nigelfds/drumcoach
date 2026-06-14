@@ -212,6 +212,7 @@ Commits are made as items are ticked off.
 - [x] **T9d** — Optional **cross-device sync** (Firebase anonymous auth → Google link, merge on conflict)
 - [x] **T10** — Light, **mobile-first redesign** ([`design/REDESIGN.md`](design/REDESIGN.md)): onboarding sheet, plain-language metrics + ⓘ glosses, single shared tempo, add-drums (toms/ride/crash) to the pattern, subdivision selector, two-tap delete, drum-type icons + synth previews
 - [x] **T11** — Recognition tuning: measured default profiles, a single **sensitivity** control (only-loud → catch-quiet), and **"Calibrate to the built-in kit"** auto-calibration
+- [x] **T12** — Testable loopback audio path + **"Test recognition"** self-test, Playwright e2e suite (`./test-e2e.sh`), low-cluster fix (peak-frame + kick/tom tiebreak), and **multi-drum detection** (kick/tom + cymbal at once)
 - [ ] **Stretch** — export MIDI, latency calibration wizard
 
 ---
@@ -239,6 +240,8 @@ Commits are made as items are ticked off.
 - **Calibrate to the built-in kit** — one tap plays each synth voice through the
   speakers while the mic listens, learning the real speaker→room→mic path.
 - **Calibrate to your real kit** — pick a drum, tap it a few times.
+- **Test recognition** — plays each voice and shows a per-voice scorecard
+  (*"Snare 3/3 ✓ · Kick 0/3 · 2× Tom 3"*) so you can see what's working.
 - **Voice rejection** (below) keeps talking/singing from firing false hits.
 
 The classifier scores the **loudest (peak) frame** of each hit (more stable than
@@ -307,7 +310,7 @@ and scoring stay exact. Calibration bypasses the voice gate entirely.
 | ------- | ---- |
 | `npm start` | Start the server on `:3000` |
 | `npm run dev` | Start with auto-reload (`node --watch`) |
-| `npm run test:e2e` | Run the Playwright end-to-end tests |
+| `./test-e2e.sh` | Run the Playwright e2e tests (selects the project's Node, installs the browser if needed). Same as `npm run test:e2e`. Extra args pass through, e.g. `./test-e2e.sh -g "two drums"`. |
 
 ---
 
@@ -321,15 +324,18 @@ and with no real mic. `?debug` (implied by loopback) exposes detected hits at
 `window.__dc.hits` and the last self-test result at `window.__dc.lastTest`.
 Loopback mode also skips cloud sync so runs are hermetic.
 
-End-to-end tests live in `tests/` and use that mode:
+End-to-end tests live in `tests/recognition.e2e.js`:
 
 ```bash
-npx playwright install chromium   # one-time
-npm run test:e2e
+./test-e2e.sh        # selects the project's Node (.nvmrc), installs chromium, runs the suite
 ```
 
-> Requires **Node ≥ 18.19** (Playwright's ESM loader). The app itself runs on
-> Node 18+.
+The suite (5 tests) covers: the app loads clean, the default eighth-note rock
+beat is seeded, the recognition self-test produces a scorecard, a played pattern
+is detected, and **two drums struck at once are both detected**.
+
+> Requires **Node ≥ 18.19** (Playwright's ESM loader) — `test-e2e.sh` handles
+> this via `nvm`. The app itself runs on Node 18+.
 
 ---
 
