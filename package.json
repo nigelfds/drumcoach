@@ -8,7 +8,8 @@
   },
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test:e2e": "playwright test"
   },
   "keywords": [
     "drums",
@@ -22,5 +23,8 @@
   "license": "MIT",
   "dependencies": {
     "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
   }
 }

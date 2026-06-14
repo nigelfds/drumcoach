@@ -299,6 +299,29 @@ drift, and scoring stay exact. Calibration bypasses the gate entirely.
 | ------- | ---- |
 | `npm start` | Start the server on `:3000` |
 | `npm run dev` | Start with auto-reload (`node --watch`) |
+| `npm run test:e2e` | Run the Playwright end-to-end tests |
+
+---
+
+## Testing
+
+The app is hard to test through a real microphone, so it has a **loopback audio
+mode**: with `?loopback=1` the `AudioEngine` is fed by the `DrumSynth` (via a
+`MediaStreamDestination`) instead of `getUserMedia`. The full
+mic → onset → classify → staff pipeline then runs on synth audio, deterministically
+and with no real mic. `?debug` (implied by loopback) exposes detected hits at
+`window.__dc.hits` and the last self-test result at `window.__dc.lastTest`.
+Loopback mode also skips cloud sync so runs are hermetic.
+
+End-to-end tests live in `tests/` and use that mode:
+
+```bash
+npx playwright install chromium   # one-time
+npm run test:e2e
+```
+
+> Requires **Node ≥ 18.19** (Playwright's ESM loader). The app itself runs on
+> Node 18+.
 
 ---
 
