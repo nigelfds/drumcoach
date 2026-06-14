@@ -31,8 +31,8 @@ with a guided onboarding sheet. The design template and rebuild plan live in
 ## Quick start
 
 ```bash
-# 1. Install the latest Node via Homebrew (one-time)
-./setup.sh
+# 1. Use the project's Node (pinned to 20 via .nvmrc)
+nvm install && nvm use     # or ./setup.sh to install the latest Node via Homebrew
 
 # 2. Install dependencies
 npm install
