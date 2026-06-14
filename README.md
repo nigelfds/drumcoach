@@ -1,18 +1,24 @@
 # 🥁 DrumCoach
 
-A browser-based drum-practice coach powered by Node.js. Play an acoustic or
-electronic kit near your microphone and DrumCoach will:
+A browser-based, **mobile-first** drum-practice coach — a static web app (Node is
+only used to serve it locally). Play an acoustic or electronic kit near your
+microphone and DrumCoach will:
 
 - **Listen** to your microphone and detect drum onsets in real time
 - **Classify** each hit as **kick, snare, tom 1/2/3, hi-hat, ride, or crash**
 - **Notate** what you played on a live, scrolling standard drum staff
 - **Measure your timing** — live BPM, steadiness, and how far you are drifting
 - **Metronome** with visual + audible click so you can lock to a tempo
-- **Score your accuracy** against a pattern you annotate on a 1–16-bar sheet (16th-note slots)
-- **Play your pattern back** through a built-in drum synth, at an adjustable tempo, with an optional loop
+- **Build & score patterns** — kick/snare/hi-hat by default, add toms/ride/crash, quarter/eighth/sixteenth resolution, and score how cleanly you play it
+- **Play your pattern back** through a built-in drum synth (the tempo follows the metronome), with an optional loop
 
 Inspired by [Tone.js' step sequencer](https://github.com/Tonejs/Tone.js/blob/main/examples/stepSequencer.html)
 and [Chrome Music Lab: Rhythm](https://musiclab.chromeexperiments.com/Rhythm/).
+
+The UI is a light, mobile-first design (a kid plays with a phone/tablet by the
+kit): `mic → 1 Set your beat → 2 Play along → Live staff → Patterns → Settings`,
+with a guided onboarding sheet. The design template and rebuild plan live in
+[`design/`](./design/) (`drumcoach-redesign.html` + `REDESIGN.md`).
 
 > ⚠️ **On drum recognition:** classifying drum hits from a single microphone is a
 > hard problem. DrumCoach uses lightweight spectral heuristics (onset detection +
@@ -159,24 +165,30 @@ The app is split into focused modules so each can be built and committed on its 
 
 | Module | File | Responsibility |
 | ------ | ---- | -------------- |
-| Server | `server.js` | Serves the static client over HTTP |
+| Server | `server.js` | Serves the static client over HTTP (local dev only) |
 | Notation | `public/js/notation.js` | Draws the live scrolling drum staff |
-| Audio engine | `public/js/audio-engine.js` | Mic capture, onset detection, drum classification |
-| Timing | `public/js/timing.js` | BPM estimation + drift / steadiness analysis |
+| Audio engine | `public/js/audio-engine.js` | Mic capture, onset detection, classification, sensitivity, voice rejection |
+| Timing | `public/js/timing.js` | BPM estimation + drift / steadiness / tightness |
 | Metronome | `public/js/metronome.js` | Scheduled click + visual beat indicator |
-| Sequencer | `public/js/sequencer.js` | Annotate a 4/8/16-bar pattern, score the player |
-| Drum synth | `public/js/drum-synth.js` | Web Audio drum-voice synth for sample previews + pattern playback |
+| Sequencer | `public/js/sequencer.js` | 1–16 bar pattern (quarter/eighth/sixteenth) + scoring |
+| Drum synth | `public/js/drum-synth.js` | Web Audio drum-voice synth for previews + pattern playback |
 | Pattern player | `public/js/pattern-player.js` | Lookahead scheduler that plays the pattern (looping optional) |
 | Pattern store | `public/js/pattern-store.js` | Persist named patterns per kit to localStorage |
 | Kit profiles | `public/js/profiles-store.js` | Persist named calibration profiles to localStorage |
-| App | `public/js/app.js` | Wires modules together and owns UI state |
+| Cloud sync | `public/js/cloud-sync.js` + `firebase-config.js` | Optional cross-device sync via Firebase |
+| App | `public/js/app.js` | Wires modules to the UI; owns view state |
 
 ### Architecture at a glance
 
 ```
-microphone → AudioEngine (onset + classify) ──┐
-                                               ├──► App (state) ──► Notation (draw)
-metronome clock ──► Timing (BPM / drift) ──────┘                └─► Sequencer (score)
+            ┌─ shared AudioContext clock ─────────────────────────────┐
+mic ─► AudioEngine (onset + classify)        Metronome ─► Timing (BPM/drift/tight)
+            │                                     │
+            └────────────► App (UI state) ◄───────┘
+                              │   ├─► Live staff (Notation) + Play-along metrics
+                              │   └─► Sequencer (grid + scoring) ─► PatternPlayer ─► DrumSynth
+                              ▼
+            ProfileStore / PatternStore ◄─► localStorage ◄─► CloudSync (Firebase, optional)
 ```
 
 ---
@@ -198,7 +210,9 @@ Commits are made as items are ticked off.
 - [x] **T9b** — Play the pattern through a built-in **drum synth**, with an optional loop
 - [x] **T9c** — Persist named **patterns per kit** to localStorage (save / load / delete, auto-restore)
 - [x] **T9d** — Optional **cross-device sync** (Firebase anonymous auth → Google link, merge on conflict)
-- [ ] **T9** — Stretch: export MIDI, latency calibration wizard
+- [x] **T10** — Light, **mobile-first redesign** ([`design/REDESIGN.md`](design/REDESIGN.md)): onboarding sheet, plain-language metrics + ⓘ glosses, single shared tempo, add-drums (toms/ride/crash) to the pattern, subdivision selector, two-tap delete, drum-type icons + synth previews
+- [x] **T11** — Recognition tuning: measured default profiles, a single **sensitivity** control (only-loud → catch-quiet), and **"Calibrate to the built-in kit"** auto-calibration
+- [ ] **Stretch** — export MIDI, latency calibration wizard
 
 ---
 
@@ -210,18 +224,26 @@ Commits are made as items are ticked off.
 2. **Feature extraction** — for the captured window it computes total energy,
    per-band energy (sub/low/low-mid/mid/high/very-high), spectral centroid, and
    decay length.
-3. **Classification** — a rule-based scorer maps those features to the most likely
-   drum voice. Thresholds live in `DRUM_PROFILES` and can be nudged by the
-   **Calibrate** panel so the app adapts to your kit.
+3. **Classification** — a nearest-profile scorer compares those features to a
+   per-voice profile and picks the closest. The defaults (`DEFAULT_PROFILES` in
+   `audio-engine.js`) are **measured by FFT'ing each built-in DrumSynth voice**,
+   so the pattern-maker's own sounds are recognised out of the box. Calibration
+   overrides a voice's profile for your real kit.
 
-| Voice | Dominant cue |
-| ----- | ------------ |
-| Kick | strong sub/low energy, low centroid |
-| Snare | broadband + noisy, mid centroid, short decay |
-| Tom 1/2/3 | tonal mid energy; centroid high→low picks 1→3 |
-| Hi-hat | bright high/very-high energy, very short decay, highest centroid |
-| Ride | high-band energy, longer decay, lower level |
-| Crash | very-high broadband energy, loud, long decay |
+### Sensitivity & calibration
+
+- **Sensitivity** (Settings) is one slider, *Only loud hits → Catch quiet taps*.
+  It tightens both gates together: how sharp the attack must be (flux vs the
+  adaptive noise floor) and how far above the ambient floor a hit must be.
+  Default leans strict, so soft taps and background noise are ignored.
+- **Calibrate to the built-in kit** — one tap plays each synth voice through the
+  speakers while the mic listens, learning the real speaker→room→mic path.
+- **Calibrate to your real kit** — pick a drum, tap it a few times.
+- **Voice rejection** (below) keeps talking/singing from firing false hits.
+
+> Honest limits: kick vs floor-tom and hi-hat vs ride are spectrally close (even
+> for the built-in sounds), so those pairs can still swap occasionally —
+> calibration to a real kit, with distinct drums, separates them best.
 
 ### Kit profiles (saved calibration)
 
