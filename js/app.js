@@ -70,12 +70,25 @@ const state = {
   calVoice: null, calibrating: null, calSamples: [], kitDirty: false,
 };
 
+// Auto-calibration ("Calibrate to the built-in kit") plumbing.
+let autoCalCollector = null;   // (info) => void while an auto-cal voice is recording
+let autoCalRunning = false;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const AUTOCAL_ORDER = ["kick", "snare", "tom1", "tom2", "tom3", "hihat", "ride", "crash"];
+function averageFeatures(samples) {
+  const keys = ["sub", "low", "lowMid", "mid", "high", "veryHigh", "centroidN", "centroid", "level"];
+  const avg = {};
+  for (const k of keys) avg[k] = samples.reduce((s, f) => s + (f[k] ?? 0), 0) / samples.length;
+  return avg;
+}
+
 // ===========================================================================
 // MIC
 // ===========================================================================
 engine.onLevel((lvl) => { $("mic-level").style.width = `${Math.round(lvl * 100)}%`; });
 
 engine.onHit((voice, info) => {
+  if (autoCalCollector) { autoCalCollector(info); return; }
   if (state.calibrating) {
     state.calSamples.push(info.features);
     updateCalBanner();
@@ -444,6 +457,7 @@ function updateCalBanner() {
   $("cal-count").textContent = `${n} hit${n === 1 ? "" : "s"}`;
 }
 function stopCalibration() {
+  if (!state.calibrating) return;
   const voice = state.calibrating, n = state.calSamples.length;
   calToggle.textContent = "● Start calibration"; calToggle.classList.remove("recording");
   for (const c of calGrid.children) c.disabled = false;
@@ -457,6 +471,58 @@ function stopCalibration() {
   if (activeId && kits.get(activeId)) { kits.updateProfiles(activeId, engine.exportProfiles()); setKitStatus(`Saved ${VOICE_META[voice].label} into the active kit.`); }
   else { state.kitDirty = true; setKitStatus("Unsaved calibration — name a kit and Save to keep it."); }
 }
+
+// Auto-calibration: play each built-in voice through the speakers and learn it
+// from what the mic hears (captures the real speaker→room→mic path).
+async function autoCalibrate() {
+  if (!engine.running) { alert("Turn on the mic first, and turn your volume up so DrumCoach can hear its sounds through your speakers."); return; }
+  if (autoCalRunning || state.calibrating) return;
+  ensureAudio();
+  // Silence the click / pattern so only the test sounds are heard.
+  if (metro.running) { metro.stop(); $("metro-play").classList.remove("playing"); $("metro-play").textContent = "▶ Start the beat"; for (const d of $("beat-dots").children) d.classList.remove("active"); }
+  if (player.playing) { player.stop(); }
+
+  autoCalRunning = true;
+  const btn = $("auto-cal");
+  const wasLabel = btn.textContent;
+  btn.disabled = true; calToggle.disabled = true;
+  for (const c of calGrid.children) c.disabled = true;
+  engine.suspendVoiceFilter = true; // don't let voice rejection drop the sounds
+
+  let got = 0;
+  try {
+    for (const v of AUTOCAL_ORDER) {
+      const samples = [];
+      autoCalCollector = (info) => samples.push(info.features);
+      $("cal-status").textContent = `▶ Listening for ${VOICE_META[v].label}…`;
+      for (let i = 0; i < 4; i++) { synth.play(v); await sleep(380); }
+      await sleep(260);
+      autoCalCollector = null;
+      if (samples.length >= 2) {
+        engine.calibrateVoice(v, averageFeatures(samples));
+        got++;
+        $("cal-status").textContent = `✓ ${VOICE_META[v].label} — heard ${samples.length}`;
+      } else {
+        $("cal-status").textContent = `⚠ ${VOICE_META[v].label} not heard — louder?`;
+      }
+      await sleep(450); // let decays die before the next voice
+    }
+  } finally {
+    autoCalCollector = null;
+    engine.suspendVoiceFilter = false;
+    autoCalRunning = false;
+    btn.disabled = false; btn.textContent = wasLabel;
+    calToggle.disabled = !state.calVoice;
+    for (const c of calGrid.children) c.disabled = false;
+  }
+
+  if (got === 0) { $("cal-status").textContent = "Couldn’t hear the sounds — turn your volume up and check the mic isn’t muted, then try again."; return; }
+  $("cal-status").textContent = `Done — calibrated ${got}/${AUTOCAL_ORDER.length} drums from the built-in kit.`;
+  const activeId = kits.activeId();
+  if (activeId && kits.get(activeId)) { kits.updateProfiles(activeId, engine.exportProfiles()); setKitStatus("Built-in calibration saved into the active kit."); }
+  else { state.kitDirty = true; setKitStatus("Calibrated to the built-in kit — name a kit and Save to keep it."); }
+}
+$("auto-cal").addEventListener("click", autoCalibrate);
 
 // ===========================================================================
 // SETTINGS — kit profiles
