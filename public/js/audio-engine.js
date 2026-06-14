@@ -26,15 +26,19 @@ const FEATURE_KEYS = ["sub", "low", "lowMid", "mid", "high", "veryHigh", "centro
 // Default voice centroids in normalized feature space (band fractions sum ≈ 1,
 // centroidN = spectral centroid / 8000, clamped 0..1). Hand-tuned starting
 // points; calibration replaces these per voice.
+// Measured from the built-in DrumSynth voices (FFT of each rendered voice
+// through the same bands/centroid the classifier uses). These match the synth's
+// actual spectra, so the pattern-maker sounds are recognised correctly out of
+// the box. Calibrate to override per voice for a real kit.
 export const DEFAULT_PROFILES = {
-  kick:  { sub: 0.45, low: 0.35, lowMid: 0.12, mid: 0.06, high: 0.01, veryHigh: 0.01, centroidN: 0.03, level: 1, decay: 1 },
-  hihat: { sub: 0.01, low: 0.02, lowMid: 0.05, mid: 0.12, high: 0.35, veryHigh: 0.45, centroidN: 0.62, level: 0.4, decay: 0.4 },
-  snare: { sub: 0.05, low: 0.08, lowMid: 0.15, mid: 0.35, high: 0.22, veryHigh: 0.15, centroidN: 0.35, level: 1, decay: 1 },
-  tom1:  { sub: 0.08, low: 0.18, lowMid: 0.40, mid: 0.25, high: 0.06, veryHigh: 0.03, centroidN: 0.12, level: 1, decay: 1 },
-  tom2:  { sub: 0.12, low: 0.30, lowMid: 0.38, mid: 0.15, high: 0.03, veryHigh: 0.02, centroidN: 0.08, level: 1, decay: 1 },
-  tom3:  { sub: 0.22, low: 0.40, lowMid: 0.28, mid: 0.07, high: 0.02, veryHigh: 0.01, centroidN: 0.05, level: 1, decay: 1 },
-  ride:  { sub: 0.02, low: 0.03, lowMid: 0.07, mid: 0.20, high: 0.30, veryHigh: 0.38, centroidN: 0.55, level: 0.5, decay: 1.3 },
-  crash: { sub: 0.03, low: 0.05, lowMid: 0.10, mid: 0.22, high: 0.30, veryHigh: 0.30, centroidN: 0.48, level: 1.0, decay: 2.0 },
+  kick:  { sub: 0.000, low: 0.433, lowMid: 0.567, mid: 0.000, high: 0.000, veryHigh: 0.000, centroidN: 0.015, level: 1, decay: 1 },
+  hihat: { sub: 0.000, low: 0.000, lowMid: 0.000, mid: 0.000, high: 0.077, veryHigh: 0.923, centroidN: 1.000, level: 1, decay: 1 },
+  snare: { sub: 0.000, low: 0.000, lowMid: 0.164, mid: 0.061, high: 0.227, veryHigh: 0.548, centroidN: 0.871, level: 1, decay: 1 },
+  tom1:  { sub: 0.000, low: 0.000, lowMid: 0.591, mid: 0.409, high: 0.000, veryHigh: 0.000, centroidN: 0.031, level: 1, decay: 1 },
+  tom2:  { sub: 0.000, low: 0.000, lowMid: 1.000, mid: 0.000, high: 0.000, veryHigh: 0.000, centroidN: 0.022, level: 1, decay: 1 },
+  tom3:  { sub: 0.000, low: 0.363, lowMid: 0.637, mid: 0.000, high: 0.000, veryHigh: 0.000, centroidN: 0.015, level: 1, decay: 1 },
+  ride:  { sub: 0.000, low: 0.000, lowMid: 0.000, mid: 0.000, high: 0.127, veryHigh: 0.873, centroidN: 1.000, level: 1, decay: 1 },
+  crash: { sub: 0.000, low: 0.000, lowMid: 0.000, mid: 0.000, high: 0.211, veryHigh: 0.789, centroidN: 1.000, level: 1, decay: 1 },
 };
 
 export class AudioEngine {
