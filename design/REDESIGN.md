@@ -45,10 +45,9 @@ the DOM-wiring half of `app.js`**.
 
 ### Decisions
 
-- **Live notation staff is demoted.** The review flagged it as intimidating for
-  true beginners; the template replaces it with plain metrics + a count-row
-  playhead. We drop the always-on staff for now (could return as an optional
-  view — see TODO).
+- **Live notation staff** sits in its own "Live staff" card between Play along
+  and Patterns, rendered on a dark display panel (the notation draws
+  light-on-dark). Metrics remain the primary, friendlier feedback above it.
 - **One tempo.** Pattern playback reads the metronome BPM; the Patterns card
   shows "Tempo follows your beat above (currently N BPM)".
 - **Calibration stays recommended, not a gate** (offered in onboarding + Settings).
@@ -86,7 +85,7 @@ the DOM-wiring half of `app.js`**.
 - [x] Verify on a mobile viewport (Playwright, 414×896) — onboarding, grid, settings render; no console errors
 - [x] Empty states, tooltip behaviour, single-tempo sync, subdivision rebuild verified
 - [ ] On-device pass for contrast / tap targets / real mic accuracy (needs a phone)
-- [ ] (Optional/deferred) re-add the notation staff as a toggle
+- [x] Re-added the live notation staff as its own card (dark "display" panel) between Play along and Patterns
 
 ### Shared-clock change (enabling)
 - [x] One `AudioContext` shared by engine/metronome/synth so the beat works
