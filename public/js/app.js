@@ -36,6 +36,14 @@ function ensureAudio() {
 }
 const nowTime = () => (audioCtx ? audioCtx.currentTime : performance.now() / 1000);
 
+// Loopback / debug, for the recognition self-test and e2e tests. With
+// ?loopback=1 the mic is fed by the synth instead of getUserMedia (deterministic,
+// no real mic). ?debug exposes a detected-hits log on window.__dc.
+const PARAMS = new URLSearchParams(location.search);
+const LOOPBACK = PARAMS.has("loopback");
+const DEBUG = LOOPBACK || PARAMS.has("debug");
+if (DEBUG) window.__dc = { hits: [], reset() { this.hits = []; }, loopback: LOOPBACK };
+
 // --- voices -----------------------------------------------------------------
 const VOICE_META = {
   hihat: { label: "Hi-hat", color: "#2E8B72" },
@@ -88,6 +96,7 @@ function averageFeatures(samples) {
 engine.onLevel((lvl) => { $("mic-level").style.width = `${Math.round(lvl * 100)}%`; });
 
 engine.onHit((voice, info) => {
+  if (DEBUG) { window.__dc.hits.push({ t: +info.time.toFixed(3), voice, conf: +info.confidence.toFixed(2) }); if (window.__dc.hits.length > 1000) window.__dc.hits.shift(); }
   if (autoCalCollector) { autoCalCollector(info); return; }
   if (state.calibrating) {
     state.calSamples.push(info.features);
@@ -105,7 +114,14 @@ engine.onHit((voice, info) => {
 async function startMic() {
   try {
     ensureAudio();
-    await engine.start(audioCtx);
+    if (LOOPBACK) {
+      // Feed the engine from the synth instead of the real mic (deterministic).
+      const dest = audioCtx.createMediaStreamDestination();
+      synth.connectTap(dest);
+      await engine.start(audioCtx, dest.stream);
+    } else {
+      await engine.start(audioCtx);
+    }
     $("mic-bar").classList.add("on");
     $("mic-label").textContent = "Mic is listening";
     $("mic-btn").textContent = "Turn off";

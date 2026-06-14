@@ -104,16 +104,17 @@ export class AudioEngine {
   /** AudioContext clock — the single source of truth for timing. */
   now() { return this.ctx ? this.ctx.currentTime : performance.now() / 1000; }
 
-  async start(externalCtx) {
+  async start(externalCtx, externalStream) {
     if (this.running) return;
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-        channelCount: 1,
-      },
-    });
+    // A caller can inject a stream (e.g. a synth-fed loopback for testing); else
+    // use the real microphone.
+    if (externalStream) { this.stream = externalStream; this._ownStream = false; }
+    else {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 },
+      });
+      this._ownStream = true;
+    }
     // Share the app's AudioContext when given, so onset timestamps and the
     // metronome grid use one clock. Otherwise create (and own) our own.
     if (externalCtx) { this.ctx = externalCtx; this._ownCtx = false; }
@@ -142,7 +143,7 @@ export class AudioEngine {
   stop() {
     this.running = false;
     if (this._raf) cancelAnimationFrame(this._raf);
-    if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
+    if (this.stream && this._ownStream) this.stream.getTracks().forEach((t) => t.stop());
     if (this.ctx && this._ownCtx) this.ctx.close(); // don't close a shared ctx
     this.analyser = this.stream = null;
     if (this._ownCtx) this.ctx = null;
