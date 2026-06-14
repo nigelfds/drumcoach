@@ -1,5 +1,6 @@
 // app.js — wires the redesigned (light, mobile-first) UI to the logic modules.
 
+import { Notation } from "./notation.js";
 import { AudioEngine } from "./audio-engine.js";
 import { TimingAnalyzer } from "./timing.js";
 import { Metronome } from "./metronome.js";
@@ -13,6 +14,7 @@ import { PatternPlayer } from "./pattern-player.js";
 const $ = (id) => document.getElementById(id);
 
 // --- modules ---------------------------------------------------------------
+const notation = new Notation($("staff"), { windowSeconds: 4 });
 const engine = new AudioEngine();
 const timing = new TimingAnalyzer();
 const metro = new Metronome();
@@ -82,7 +84,9 @@ engine.onHit((voice, info) => {
   }
   const grid = metro.getGrid();
   timing.addOnset(info.time, grid);
-  if (state.practice && grid) seq.judgeHit(voice, info.time);
+  let judgement = "plain";
+  if (state.practice && grid) judgement = seq.judgeHit(voice, info.time);
+  notation.addHit(info.time, voice, judgement);
 });
 
 async function startMic() {
@@ -557,7 +561,13 @@ $("replay-btn").addEventListener("click", openOb);
 // RENDER LOOP
 // ===========================================================================
 function loop() {
-  if (state.practice && metro.getGrid()) { seq.update(nowTime(), metro.getGrid()); updateScore(); }
+  const now = nowTime();
+  const grid = metro.getGrid();
+  if (state.practice && grid) { seq.update(now, grid); updateScore(); }
+  // live staff
+  notation.setBeats(metro.beatsInWindow(now, notation.windowSeconds));
+  notation.setTargets(grid ? seq.targetsInWindow(now, grid, notation.windowSeconds, 0) : []);
+  notation.render(now);
   updateStats();
   requestAnimationFrame(loop);
 }

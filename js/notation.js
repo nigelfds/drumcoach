@@ -19,17 +19,17 @@ export const VOICES = {
 };
 
 const COLORS = {
-  staff: "#3a4150",
-  now: "#ff5d73",
-  grid: "rgba(120,140,180,0.18)",
-  gridStrong: "rgba(120,140,180,0.4)",
-  note: "#e8edf6",
-  hit: "#43d17a",
-  early: "#f5c451",
-  late: "#5aa0ff",
-  miss: "#ff5d73",
-  ghost: "rgba(232,237,246,0.28)",
-  label: "#7e8aa0",
+  staff: "#33474f",
+  now: "#FF5A36",
+  grid: "rgba(150,180,170,0.16)",
+  gridStrong: "rgba(150,180,170,0.36)",
+  note: "#EAF1EE",
+  hit: "#56E0A6",
+  early: "#EFC15A",
+  late: "#6FB7E0",
+  miss: "#FF5A36",
+  ghost: "rgba(234,241,238,0.26)",
+  label: "#8aa39b",
 };
 
 export class Notation {
@@ -56,8 +56,8 @@ export class Notation {
 
   _resize() {
     const rect = this.canvas.getBoundingClientRect();
-    this.w = Math.max(320, rect.width);
-    this.h = Math.max(260, rect.height);
+    this.w = Math.max(280, rect.width);
+    this.h = Math.max(200, rect.height);
     this.canvas.width = this.w * this._dpr;
     this.canvas.height = this.h * this._dpr;
     this.ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
