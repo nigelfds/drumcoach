@@ -81,6 +81,8 @@ const state = {
 // Auto-calibration ("Calibrate to the built-in kit") plumbing.
 let autoCalCollector = null;   // (info) => void while an auto-cal voice is recording
 let autoCalRunning = false;
+let testCollector = null;      // (voice, info) => void during the recognition test
+let testRunning = false;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const AUTOCAL_ORDER = ["kick", "snare", "tom1", "tom2", "tom3", "hihat", "ride", "crash"];
 function averageFeatures(samples) {
@@ -104,6 +106,7 @@ engine.onHit((voice, info) => {
     if (state.calSamples.length >= 16) stopCalibration();
     return;
   }
+  if (testCollector) testCollector(voice, info); // additive: still notate below
   const grid = metro.getGrid();
   timing.addOnset(info.time, grid);
   let judgement = "plain";
@@ -539,6 +542,86 @@ async function autoCalibrate() {
   else { state.kitDirty = true; setKitStatus("Calibrated to the built-in kit — name a kit and Save to keep it."); }
 }
 $("auto-cal").addEventListener("click", autoCalibrate);
+
+// Recognition self-test: play each built-in voice and check the engine hears it
+// as the right drum. Production uses the acoustic path (speakers→mic); under
+// ?loopback=1 it's deterministic. Sensitivity is briefly maxed so quiet voices
+// still register — this measures *classification*, not loudness.
+const TEST_VOICES = ["kick", "snare", "hihat", "tom1", "tom2", "tom3", "ride", "crash"];
+async function runRecognitionTest() {
+  if (!engine.running) { alert("Turn on the mic first (and turn your volume up if using your real speakers)."); return; }
+  if (testRunning || autoCalRunning || state.calibrating) return;
+  ensureAudio();
+  if (metro.running) { metro.stop(); $("metro-play").classList.remove("playing"); $("metro-play").textContent = "▶ Start the beat"; for (const d of $("beat-dots").children) d.classList.remove("active"); }
+  if (player.playing) { player.stop(); }
+
+  testRunning = true;
+  const btn = $("test-recog");
+  btn.disabled = true; $("auto-cal").disabled = true;
+  const savedT = +$("sens-range").value / 100;
+  engine.setSensitivity(0.9);            // make sure quiet voices register
+  engine.suspendVoiceFilter = true;
+  notation.clear();
+
+  const expected = [], detections = [];
+  testCollector = (voice, info) => detections.push({ voice, time: info.time });
+  $("test-results").hidden = false;
+
+  try {
+    for (const v of TEST_VOICES) {
+      $("test-results").innerHTML = `<div class="tr-head">▶ Testing ${VOICE_META[v].label}…</div>`;
+      for (let i = 0; i < 3; i++) {
+        const t = nowTime() + 0.06;
+        synth.playAt(v, t);
+        expected.push({ voice: v, time: t });
+        await sleep(330);
+      }
+      await sleep(360); // let the decay settle before the next voice
+    }
+    await sleep(400);
+  } finally {
+    testCollector = null;
+    engine.suspendVoiceFilter = false;
+    engine.setSensitivity(savedT);
+    btn.disabled = false; $("auto-cal").disabled = false;
+    testRunning = false;
+  }
+  renderTestResults(expected, detections);
+}
+
+function renderTestResults(expected, detections) {
+  const WIN = 0.2; // ±200 ms to call a detection "the same hit"
+  const used = new Set();
+  const per = {};
+  for (const v of TEST_VOICES) per[v] = { total: 0, correct: 0, miss: 0, confused: {} };
+  for (const e of expected) {
+    per[e.voice].total++;
+    let best = -1, bestDt = WIN;
+    for (let i = 0; i < detections.length; i++) {
+      if (used.has(i)) continue;
+      const dt = Math.abs(detections[i].time - e.time);
+      if (dt <= bestDt) { best = i; bestDt = dt; }
+    }
+    if (best === -1) { per[e.voice].miss++; continue; }
+    used.add(best);
+    const dv = detections[best].voice;
+    if (dv === e.voice) per[e.voice].correct++;
+    else per[e.voice].confused[dv] = (per[e.voice].confused[dv] || 0) + 1;
+  }
+  const totalCorrect = TEST_VOICES.reduce((s, v) => s + per[v].correct, 0);
+  const totalAll = TEST_VOICES.reduce((s, v) => s + per[v].total, 0);
+  const rows = TEST_VOICES.map((v) => {
+    const p = per[v], ok = p.correct === p.total;
+    const conf = Object.entries(p.confused).map(([k, n]) => `${n}× ${VOICE_META[k].label}`).join(", ");
+    const note = [conf, p.miss ? `${p.miss} not heard` : ""].filter(Boolean).join("; ");
+    return `<div class="tr-row ${ok ? "ok" : "warn"}"><span>${ok ? "✓" : "⚠"} ${VOICE_META[v].label}</span><span>${p.correct}/${p.total}${note ? ` · ${note}` : ""}</span></div>`;
+  }).join("");
+  $("test-results").innerHTML =
+    `<div class="tr-head">Recognition: ${totalCorrect}/${totalAll} correct</div>${rows}` +
+    `<div class="tr-foot">If a drum is wrong, calibrate to the built-in kit (or your real kit) and re-test.</div>`;
+  if (window.__dc) window.__dc.lastTest = { per, totalCorrect, totalAll };
+}
+$("test-recog").addEventListener("click", runRecognitionTest);
 
 // ===========================================================================
 // SETTINGS — kit profiles
