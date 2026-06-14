@@ -37,12 +37,12 @@ test("recognition self-test produces a per-voice scorecard", async ({ page }) =>
   const t = await page.evaluate(() => window.__dc.lastTest);
   expect(t.totalAll).toBe(24); // 8 voices × 3 hits
 
-  // clearly-separable voices must be recognised through the full pipeline
-  expect(t.per.snare.correct).toBeGreaterThanOrEqual(2);
-  expect(t.per.crash.correct).toBeGreaterThanOrEqual(2);
-
-  // overall sanity — kick↔toms and hi-hat↔ride are known-fuzzy, so stay tolerant
-  expect(t.totalCorrect).toBeGreaterThanOrEqual(8);
+  // recognition should be strong on the built-in sounds (a small jitter margin
+  // below the typical 24/24). The kick/floor-tom pair must stay separated.
+  expect(t.totalCorrect).toBeGreaterThanOrEqual(20);
+  for (const v of ["kick", "snare", "tom3", "crash"]) {
+    expect(t.per[v].correct, `${v} recognition`).toBeGreaterThanOrEqual(2);
+  }
 
   // the scorecard is rendered
   await expect(page.locator("#test-results .tr-head")).toContainText("Recognition:");

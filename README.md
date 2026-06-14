@@ -241,9 +241,11 @@ Commits are made as items are ticked off.
 - **Calibrate to your real kit** — pick a drum, tap it a few times.
 - **Voice rejection** (below) keeps talking/singing from firing false hits.
 
-> Honest limits: kick vs floor-tom and hi-hat vs ride are spectrally close (even
-> for the built-in sounds), so those pairs can still swap occasionally —
-> calibration to a real kit, with distinct drums, separates them best.
+The classifier scores the **loudest (peak) frame** of each hit (more stable than
+the rising edge) and adds a **kick-vs-floor-tom tiebreak** — the kick sweeps down
+into the sub band over its decay while the floor tom doesn't. With those, the
+built-in sounds recognise cleanly (**24/24** in the self-test). A real kit may
+still want calibration for its own close pairs.
 
 ### Kit profiles (saved calibration)
 
@@ -276,9 +278,9 @@ without touching drum detection:
 | **Moderate** | A 3-test gate: rejects an onset only when it is **sustained** (doesn't decay) **and** **harmonic** (low spectral flatness) **and** **speech-banded** (200–3400 Hz). All three are needed, so kick (wrong band), snare/cymbals (too noisy), and toms (decay too fast) are always kept |
 | **Aggressive** *(default)* | The 3-test gate **plus** a voice-activity detector that also blocks pitched, speech-banded onsets struck while you're mid-talking |
 
-The gate watches ~80 ms of decay before deciding, so a filtered-or-not note
-appears ~90 ms later — but hits are timestamped at the **true onset**, so BPM,
-drift, and scoring stay exact. Calibration bypasses the gate entirely.
+The classifier watches ~130 ms of each hit before deciding, so a note appears
+~130 ms later — but hits are timestamped at the **true onset**, so BPM, drift,
+and scoring stay exact. Calibration bypasses the voice gate entirely.
 
 ---
 
