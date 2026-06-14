@@ -198,6 +198,16 @@ details.disc[open]>summary .chev{transform:rotate(90deg)}
 .cal-banner .rec{width:10px;height:10px;border-radius:50%;background:#c0432a;animation:pulse 1s infinite;flex:none}
 .cal-banner .cal-count{margin-left:auto;font-family:"JetBrains Mono",monospace;color:var(--good)}
 
+/* recognition self-test scorecard */
+.test-results{margin-top:10px;background:var(--paper);border:1px solid var(--line);border-radius:13px;padding:11px 13px}
+.test-results[hidden]{display:none}
+.tr-head{font-weight:600;font-size:12.5px;margin-bottom:7px}
+.tr-row{display:flex;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--muted);padding:3px 0}
+.tr-row span:last-child{font-family:"JetBrains Mono",monospace;text-align:right}
+.tr-row.ok span:first-child{color:var(--good)}
+.tr-row.warn span:first-child{color:var(--warn)}
+.tr-foot{font-size:10.5px;color:var(--muted);margin-top:8px;line-height:1.4}
+
 footer{text-align:center;font-size:11.5px;color:var(--muted);margin-top:20px}
 footer .heart{color:var(--beat)}
 
