@@ -65,3 +65,41 @@ test("playing a pattern is detected through the loopback pipeline", async ({ pag
   // the rock beat is kick/snare/hi-hat — at least one of each family should appear
   expect(detected.some((v) => v === "kick" || v === "snare")).toBeTruthy();
 });
+
+test("opens with the default eighth-note rock beat", async ({ page }) => {
+  await page.goto("/?loopback=1");
+  await page.waitForFunction(() => window.__dc && document.querySelectorAll("#grid .cell").length > 0);
+  const { dims, active } = await page.evaluate(() => ({ dims: window.__dc.dims(), active: window.__dc.active() }));
+
+  // 1 bar, eighth notes (2 steps/beat), 4 beats
+  expect(dims).toEqual({ bars: 1, beatsPerBar: 4, stepsPerBeat: 2 });
+  // hi-hat on all 8 eighths, snare on 2 & 4 (steps 2,6), kick on 1 & 3 (steps 0,4)
+  expect(active).toEqual([
+    "hihat:0", "hihat:1", "hihat:2", "hihat:3", "hihat:4", "hihat:5", "hihat:6", "hihat:7",
+    "kick:0", "kick:4", "snare:2", "snare:6",
+  ].sort());
+});
+
+test("detects two drums struck at the same time", async ({ page }) => {
+  await boot(page);
+  await page.evaluate(() => {
+    const s = document.getElementById("sens-range");
+    s.value = "100"; s.dispatchEvent(new Event("input"));
+  });
+  const hit = (...voices) => page.evaluate(async (vs) => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    window.__dc.reset(); window.__dc.play(...vs); await sleep(500);
+    return [...new Set(window.__dc.hits.map((h) => h.voice))].sort();
+  }, voices);
+  const CYMBALS = ["hihat", "ride", "crash"];
+
+  // kick + a cymbal at the same instant → BOTH (kick plus a cymbal voice)
+  const kh = await hit("kick", "hihat");
+  expect(kh).toContain("kick");
+  expect(kh.some((v) => CYMBALS.includes(v)), "a cymbal heard alongside the kick").toBeTruthy();
+  expect(kh.length).toBe(2);
+
+  // lone hits stay single — no phantom cymbal from a low drum's attack click
+  expect(await hit("kick")).toEqual(["kick"]);
+  expect(await hit("snare")).toEqual(["snare"]);
+});

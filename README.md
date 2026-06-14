@@ -9,7 +9,7 @@ microphone and DrumCoach will:
 - **Notate** what you played on a live, scrolling standard drum staff
 - **Measure your timing** — live BPM, steadiness, and how far you are drifting
 - **Metronome** with visual + audible click so you can lock to a tempo
-- **Build & score patterns** — kick/snare/hi-hat by default, add toms/ride/crash, quarter/eighth/sixteenth resolution, and score how cleanly you play it
+- **Build & score patterns** — opens with a 1-bar eighth-note rock beat (hi-hats throughout, snare on 2 & 4, kick on 1 & 3); add toms/ride/crash, change resolution, and score how cleanly you play it
 - **Play your pattern back** through a built-in drum synth (the tempo follows the metronome), with an optional loop
 
 Inspired by [Tone.js' step sequencer](https://github.com/Tonejs/Tone.js/blob/main/examples/stepSequencer.html)
@@ -244,8 +244,14 @@ Commits are made as items are ticked off.
 The classifier scores the **loudest (peak) frame** of each hit (more stable than
 the rising edge) and adds a **kick-vs-floor-tom tiebreak** — the kick sweeps down
 into the sub band over its decay while the floor tom doesn't. With those, the
-built-in sounds recognise cleanly (**24/24** in the self-test). A real kit may
+built-in sounds recognise cleanly (~24/24 in the self-test). A real kit may
 still want calibration for its own close pairs.
+
+**Multiple drums at once:** kick and toms have no high-frequency energy of their
+own, so a *sustained* high-band spike (≥6 kHz, over several frames — not a one-
+frame attack click) on a low-drum hit means a cymbal/hat is layered on top, and
+both are emitted (e.g. kick + hi-hat, tom + crash). Snare overlaps the cymbal
+band, so snare + hi-hat reads as just the snare.
 
 ### Kit profiles (saved calibration)
 

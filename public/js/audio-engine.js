@@ -60,6 +60,7 @@ export class AudioEngine {
     this._floorMult = 3.5;           // hit energy must exceed this × the ambient floor
     this.setSensitivity(0.3);        // default: lean toward only loud, clear hits
     this._energyFloor = null;        // per-signal ambient floor, for fair gating
+    this._vhFloor = null;            // high-band floor, for layered-cymbal detection
 
     // Voice rejection: "off" | "moderate" | "aggressive". The gate sits between
     // onset detection and hit emission, so "off" leaves the pipeline untouched.
@@ -131,6 +132,7 @@ export class AudioEngine {
     this._binHz = this.ctx.sampleRate / this.fftSize;
 
     this._energyFloor = null;
+    this._vhFloor = null;
     this._fluxHistory = [];
     this._prevSpectrum = null;
     this._candidate = null;
@@ -166,10 +168,17 @@ export class AudioEngine {
 
     this._updateVad(feat);
 
+    // High-band (cymbal/hat) floor + per-frame spike. Kick/toms have no energy
+    // ≥6 kHz, so a spike there on a low-drum hit means a cymbal is layered on top.
+    const vh = feat.vhAbs;
+    this._vhFloor = this._vhFloor == null ? vh : Math.min(vh, this._vhFloor * 1.06 + 1e-9);
+    const cymbalFrame = vh > this._vhFloor * 5 && vh > 1e-7;
+
     // Grow the in-flight candidate's decay-watch window.
     if (this._candidate) {
       this._candidate.frames.push(feat);
       this._candidate.peakEnergy = Math.max(this._candidate.peakEnergy, feat.energy);
+      this._noteCymbal(this._candidate, feat, cymbalFrame);
     }
 
     if (this._isOnset(flux, feat, t)) {
@@ -184,8 +193,11 @@ export class AudioEngine {
         peakEnergy: feat.energy,
         frames: [feat],
         voiceActiveAtOnset: this._voiceActive,
+        cymbal: false,
         endsAt: t + 0.13, // long enough to catch the kick's downsweep into sub
       };
+      // NB: the onset frame is skipped for cymbal detection — a low drum's attack
+      // is a broadband click that would look like a cymbal for one frame.
     }
 
     // Emit (or reject) a candidate once its decay window has elapsed.
@@ -215,6 +227,8 @@ export class AudioEngine {
 
     let { voice, confidence, scores } = this.classify(cf, 1);
 
+    const LOW_DRUMS = ["kick", "tom1", "tom2", "tom3"];
+
     // Kick vs floor-tom tiebreak. They're near-identical at the peak, but the
     // kick sweeps down into the sub band (≈45 Hz) over its decay while the floor
     // tom bottoms out higher. When those two are the closest match, decide by
@@ -229,6 +243,31 @@ export class AudioEngine {
 
     if (this._onFeatures) this._onFeatures(cf);
     if (this._onHit) this._onHit(voice, { time: c.time, confidence, features: cf, scores });
+
+    // Multi-voice: a cymbal/hat layered over a low drum. Low drums have no
+    // ≥6 kHz energy of their own, so a high-band spike means a separate cymbal —
+    // emit it as a second hit at the same time. (Snare overlaps the cymbal band,
+    // so we only do this for kick/toms, never for snare.)
+    if (c.cymbal && LOW_DRUMS.includes(voice)) {
+      const r = c.cymbalRatio ?? 0.9;
+      const cym = r > 0.9 ? "hihat" : r > 0.83 ? "ride" : "crash";
+      if (this._onHit) this._onHit(cym, { time: c.time, confidence: 0.5, features: cf, scores: {} });
+    }
+  }
+
+  /**
+   * Track high-band (cymbal) frames during a candidate. A real cymbal sustains
+   * energy ≥6 kHz over multiple frames; a low drum's attack click is a single
+   * frame, so we require ≥2 spike frames before believing a cymbal is present.
+   */
+  _noteCymbal(c, feat, cymbalFrame) {
+    if (!cymbalFrame) return;
+    c._cymCount = (c._cymCount || 0) + 1;
+    if (c._cymCount >= 2) c.cymbal = true;
+    if (feat.vhAbs > (c._cymPeak || 0)) {
+      c._cymPeak = feat.vhAbs;
+      c.cymbalRatio = feat.vhAbs / (feat.highAbs + feat.vhAbs + 1e-12);
+    }
   }
 
   /**
@@ -307,6 +346,8 @@ export class AudioEngine {
     frac.centroidN = Math.min(1, centroid / 8000);
     frac.centroid = centroid;
     frac.energy = total;                // raw spectral energy (for fair gating)
+    frac.vhAbs = bandEnergy["veryHigh"]; // absolute high-band (≥6 kHz) energy
+    frac.highAbs = bandEnergy["high"];   // absolute 2–6 kHz energy
     frac.level = Math.sqrt(total) / 40; // rough loudness proxy
     frac.voiceBandFrac = voiceBandE / safe; // how speech-banded the frame is
     // Spectral flatness = geometric/arithmetic mean of magnitude: ~0 tonal
