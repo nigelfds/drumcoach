@@ -74,6 +74,16 @@
       <div class="eyebrow"><span class="step">2</span><h2>Play along</h2></div>
       <p class="hint">Start the beat above and play. Your timing shows up here, live.</p>
 
+      <div class="difficulty-row">
+        <span class="k">Skill level <button class="info" data-tip="difficulty">i</button></span>
+        <div class="seg-group" id="difficulty">
+          <button class="seg" data-level="beginner">Beginner</button>
+          <button class="seg" data-level="intermediate">Intermediate</button>
+          <button class="seg" data-level="pro">Pro</button>
+        </div>
+      </div>
+      <div class="tip" id="tip-difficulty">Skill level sets how tight your timing has to be. Beginner is forgiving; Pro expects pro-level accuracy. It changes the feedback ranges and how the pattern is scored — not the music.</div>
+
       <div class="empty" id="fb-empty">
         Nothing yet — <b>start the beat</b> and play a few bars.<br />
         Your tempo, drift and tightness will appear here.
@@ -85,9 +95,10 @@
         <div class="metric"><span class="k">Drift <button class="info" data-tip="drift">i</button></span><span class="v" id="m-drift">—</span></div>
         <div class="metric"><span class="k">Tightness <button class="info" data-tip="tight">i</button></span><span class="v" id="m-tight">—</span></div>
       </div>
+      <p class="latency-note" id="latency-readout"></p>
       <div class="tip" id="tip-tempo">Your tempo: how fast you're actually playing, in beats per minute.</div>
-      <div class="tip" id="tip-intime">In time: how consistent your timing is overall. “Steady” means you're locked to the click.</div>
-      <div class="tip" id="tip-drift">Drift: are you speeding up or slowing down compared to the click? Near zero is right in the pocket.</div>
+      <div class="tip" id="tip-intime">In time: how consistent your timing is overall. “Steady” means your spacing between hits is even.</div>
+      <div class="tip" id="tip-drift">Drift: are you speeding up or slowing down compared to the click? Near zero is right in the pocket. Calibrate to the built-in kit first so mic/speaker delay doesn't fake a drift.</div>
       <div class="tip" id="tip-tight">Tightness: how scattered your hits are around each beat, in milliseconds. Smaller is tighter.</div>
     </section>
 

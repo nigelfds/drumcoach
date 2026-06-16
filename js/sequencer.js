@@ -15,15 +15,25 @@ export class PatternSequencer {
     this.stepsPerBeat = 4;       // 16th notes
     this.active = new Set();     // "voice:step"
 
-    this.scoringWindow = 0.12;   // ± seconds counted as a match
-    this.tightWindow = 0.045;    // within this = clean "hit", else early/late
+    // Timing windows (seconds). Defaults are the Beginner preset; the app
+    // overrides these from the difficulty selector via setWindows().
+    this.scoringWindow = 0.150;  // ± counted as a match at all (else miss/extra)
+    this.cleanWindow = 0.070;    // within this = a clean "hit" (green)
+    this.perfectWindow = 0.035;  // within this = "perfect" (dead on)
 
     this._instances = new Map(); // id → { voice, time, resolved, judgement }
     this.results = this._emptyResults();
   }
 
   _emptyResults() {
-    return { hit: 0, early: 0, late: 0, miss: 0, extra: 0, total: 0 };
+    return { perfect: 0, hit: 0, early: 0, late: 0, miss: 0, extra: 0, total: 0 };
+  }
+
+  /** Set the scoring windows (seconds) from the difficulty preset. */
+  setWindows({ match, clean, perfect }) {
+    if (match != null) this.scoringWindow = match;
+    if (clean != null) this.cleanWindow = clean;
+    if (perfect != null) this.perfectWindow = perfect;
   }
 
   get stepsPerBar() { return this.beatsPerBar * this.stepsPerBeat; }
@@ -120,11 +130,13 @@ export class PatternSequencer {
     }
     best.resolved = true;
     const signed = time - best.time;
+    const mag = Math.abs(signed);
     let judgement;
-    if (Math.abs(signed) <= this.tightWindow) judgement = "hit";
+    if (mag <= this.perfectWindow) judgement = "perfect";
+    else if (mag <= this.cleanWindow) judgement = "hit";
     else judgement = signed < 0 ? "early" : "late";
     best.judgement = judgement;
-    this.results[judgement === "hit" ? "hit" : judgement === "early" ? "early" : "late"]++;
+    this.results[judgement]++;
     this.results.total++;
     return judgement;
   }
@@ -132,9 +144,10 @@ export class PatternSequencer {
   /** Accuracy summary for the UI. */
   accuracy() {
     const r = this.results;
-    const scored = r.hit + r.early + r.late + r.miss;
+    const scored = r.perfect + r.hit + r.early + r.late + r.miss;
     if (scored === 0) return null;
-    const good = r.hit + (r.early + r.late) * 0.5; // partial credit for loose timing
+    // perfect + clean hits = full credit; loose (early/late) = half.
+    const good = r.perfect + r.hit + (r.early + r.late) * 0.5;
     return {
       percent: Math.round((good / scored) * 100),
       ...r,

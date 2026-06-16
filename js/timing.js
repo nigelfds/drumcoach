@@ -59,8 +59,15 @@ export class TimingAnalyzer {
     return Math.round(bpm);
   }
 
-  /** 0..1 steadiness from the coefficient of variation of recent IOIs. */
-  steadiness() {
+  /**
+   * Coefficient of variation (std / mean) of recent inter-onset intervals — the
+   * raw "how even are my gaps" number. The UI turns this into a label using
+   * difficulty-dependent cutoffs (a beginner's even playing has a higher CV than
+   * a pro's). NB: this assumes a roughly isochronous stream; a multi-voice
+   * groove has deliberately uneven gaps, so prefer grid tightness when a
+   * metronome is running.
+   */
+  steadinessCV() {
     if (this.onsets.length < 5) return null;
     const iois = [];
     for (let i = 1; i < this.onsets.length; i++) {
@@ -70,8 +77,7 @@ export class TimingAnalyzer {
     if (iois.length < 4) return null;
     const mean = iois.reduce((a, b) => a + b, 0) / iois.length;
     const variance = iois.reduce((a, b) => a + (b - mean) ** 2, 0) / iois.length;
-    const cv = Math.sqrt(variance) / (mean || 1);
-    return Math.max(0, Math.min(1, 1 - cv * 4)); // cv 0 → 1.0, cv 0.25 → 0
+    return Math.sqrt(variance) / (mean || 1);
   }
 
   /**
@@ -81,11 +87,7 @@ export class TimingAnalyzer {
   drift() {
     if (this.errors.length < 3) return null;
     const mean = this.errors.reduce((a, b) => a + b, 0) / this.errors.length;
-    const ms = mean * 1000;
-    let label = "on time";
-    if (ms > 18) label = "dragging (behind)";
-    else if (ms < -18) label = "rushing (ahead)";
-    return { ms: Math.round(ms), label };
+    return { ms: Math.round(mean * 1000) }; // + = dragging, − = rushing; UI labels it
   }
 
   /** Spread of recent timing errors in ms (lower = tighter). */
