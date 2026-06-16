@@ -42,10 +42,13 @@ const nowTime = () => (audioCtx ? audioCtx.currentTime : performance.now() / 100
 const PARAMS = new URLSearchParams(location.search);
 const LOOPBACK = PARAMS.has("loopback");
 const DEBUG = LOOPBACK || PARAMS.has("debug");
+const SHOW_PANEL = PARAMS.has("debug");   // the visual panel only when ?debug (not loopback)
+let debugPanel = null;
 if (DEBUG) window.__dc = {
   hits: [], reset() { this.hits = []; }, loopback: LOOPBACK,
   active: () => [...seq.active].sort(),                       // current pattern cells
   dims: () => ({ bars: seq.bars, beatsPerBar: seq.beatsPerBar, stepsPerBeat: seq.stepsPerBeat }),
+  profiles: () => engine.exportProfiles(),
   play: (...voices) => { const t = synth.context().currentTime + 0.04; voices.forEach((v) => synth.playAt(v, t)); },
 };
 
@@ -103,7 +106,15 @@ function averageFeatures(samples) {
 engine.onLevel((lvl) => { $("mic-level").style.width = `${Math.round(lvl * 100)}%`; });
 
 engine.onHit((voice, info) => {
-  if (DEBUG) { window.__dc.hits.push({ t: +info.time.toFixed(3), voice, conf: +info.confidence.toFixed(2) }); if (window.__dc.hits.length > 1000) window.__dc.hits.shift(); }
+  if (DEBUG) {
+    const conf = +info.confidence.toFixed(2);
+    window.__dc.hits.push({ t: +info.time.toFixed(3), voice, conf });
+    if (window.__dc.hits.length > 1000) window.__dc.hits.shift();
+    const rec = { t: info.time, voice, conf, features: info.features, scores: info.scores || {},
+      subTail: info.subTail, tiebreak: info.tiebreak, secondary: !!info.secondary };
+    window.__dc.lastHit = rec;
+    if (debugPanel) debugPanel.addHit(rec);
+  }
   if (autoCalCollector) { autoCalCollector(info); return; }
   if (state.calibrating) {
     state.calSamples.push(info.features);
@@ -782,6 +793,16 @@ cloud.onUpdate(onCloudData).onStatus(updateSyncUi);
 // Firestore data leaking in and making runs non-deterministic).
 if (LOOPBACK) updateSyncUi({ state: "disabled" });
 else cloud.start();
+
+// Recognition debug overlay (?debug).
+if (SHOW_PANEL) {
+  import("./debug-panel.js")
+    .then(({ DebugPanel }) => {
+      debugPanel = new DebugPanel({ getProfiles: () => engine.exportProfiles(), voiceMeta: VOICE_META, order: ORDER });
+      debugPanel.mount();
+    })
+    .catch((e) => console.warn("DrumCoach: debug panel failed to load", e));
+}
 
 if (!localStorage.getItem("drumcoach.onboarded.v2")) { buildObDots(); openOb(); }
 else buildObDots();

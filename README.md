@@ -324,6 +324,22 @@ and with no real mic. `?debug` (implied by loopback) exposes detected hits at
 `window.__dc.hits` and the last self-test result at `window.__dc.lastTest`.
 Loopback mode also skips cloud sync so runs are hermetic.
 
+### Recognition debug panel (`?debug`)
+
+Add `?debug` to the URL (works in dev or prod, with the real mic or loopback) to
+get a collapsible overlay that explains misclassifications:
+
+- **Profile comparison** — overlay two voices' calibrated fingerprints (bands +
+  centroid) with the distance between them, e.g. how close kick and floor tom are.
+- **Live hit inspector** — for the last hit: its fingerprint, the distance to
+  *every* profile (the classifier's scores), the chosen voice, the sub-tail value,
+  and any layered cymbal.
+- **Onset log** — recent detections (time / voice / confidence), so a double-
+  trigger (e.g. a snare that also fires a hi-hat) is obvious.
+
+It reuses `window.__dc` and changes nothing in the recognition pipeline; it only
+renders when `?debug` is present (so the loopback e2e tests don't show it).
+
 End-to-end tests live in `tests/recognition.e2e.js`:
 
 ```bash

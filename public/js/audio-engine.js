@@ -233,16 +233,19 @@ export class AudioEngine {
     // kick sweeps down into the sub band (≈45 Hz) over its decay while the floor
     // tom bottoms out higher. When those two are the closest match, decide by
     // how much sub-band energy showed up in the tail of the hit.
+    const tail = c.frames.slice(-4);
+    const subTail = tail.reduce((s, f) => s + (f.sub || 0), 0) / Math.max(1, tail.length);
+
     const ranked = Object.entries(scores).sort((a, b) => a[1] - b[1]);
     const top2 = ranked.slice(0, 2).map((e) => e[0]);
+    let tiebreak = null;
     if (top2.includes("kick") && top2.includes("tom3")) {
-      const tail = c.frames.slice(-4);
-      const subTail = tail.reduce((s, f) => s + (f.sub || 0), 0) / Math.max(1, tail.length);
       voice = subTail > 0.15 ? "kick" : "tom3";
+      tiebreak = voice;
     }
 
     if (this._onFeatures) this._onFeatures(cf);
-    if (this._onHit) this._onHit(voice, { time: c.time, confidence, features: cf, scores });
+    if (this._onHit) this._onHit(voice, { time: c.time, confidence, features: cf, scores, subTail, tiebreak });
 
     // Multi-voice: a cymbal/hat layered over a low drum. Low drums have no
     // ≥6 kHz energy of their own, so a high-band spike means a separate cymbal —
@@ -251,7 +254,7 @@ export class AudioEngine {
     if (c.cymbal && LOW_DRUMS.includes(voice)) {
       const r = c.cymbalRatio ?? 0.9;
       const cym = r > 0.9 ? "hihat" : r > 0.83 ? "ride" : "crash";
-      if (this._onHit) this._onHit(cym, { time: c.time, confidence: 0.5, features: cf, scores: {} });
+      if (this._onHit) this._onHit(cym, { time: c.time, confidence: 0.5, features: cf, scores: {}, secondary: true, cymbalRatio: r });
     }
   }
 

@@ -10,14 +10,15 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: "http://localhost:3080",
     // Let the AudioContext run without a user gesture in headless.
     launchOptions: { args: ["--autoplay-policy=no-user-gesture-required"] },
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: "node server.js",
-    url: "http://localhost:3000/healthz",
+    // Port 3080 (not the default 3000) to avoid clashing with other local apps.
+    command: "PORT=3080 node server.js",
+    url: "http://localhost:3080/healthz",
     reuseExistingServer: !process.env.CI,
     timeout: 20_000,
   },
