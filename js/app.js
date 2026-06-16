@@ -50,6 +50,12 @@ if (DEBUG) window.__dc = {
   dims: () => ({ bars: seq.bars, beatsPerBar: seq.beatsPerBar, stepsPerBeat: seq.stepsPerBeat }),
   profiles: () => engine.exportProfiles(),
   play: (...voices) => { const t = synth.context().currentTime + 0.04; voices.forEach((v) => synth.playAt(v, t)); },
+  setPattern: (cells) => {
+    seq.active.clear();
+    const shown = new Set(DEFAULT_SHOWN);
+    for (const c of cells) { seq.active.add(c); const v = c.split(":")[0]; if (EXTRA.includes(v)) shown.add(v); }
+    state.shown = shown; buildDrumAdder(); buildGrid();
+  },
 };
 
 // --- voices -----------------------------------------------------------------
@@ -610,19 +616,26 @@ function renderTestResults(expected, detections) {
   const used = new Set();
   const per = {};
   for (const v of TEST_VOICES) per[v] = { total: 0, correct: 0, miss: 0, confused: {} };
-  for (const e of expected) {
-    per[e.voice].total++;
+  const nearest = (t, sameVoice) => {
     let best = -1, bestDt = WIN;
     for (let i = 0; i < detections.length; i++) {
       if (used.has(i)) continue;
-      const dt = Math.abs(detections[i].time - e.time);
+      if (sameVoice && detections[i].voice !== sameVoice) continue;
+      const dt = Math.abs(detections[i].time - t);
       if (dt <= bestDt) { best = i; bestDt = dt; }
     }
+    return best;
+  };
+  for (const e of expected) {
+    per[e.voice].total++;
+    // Prefer a correct-voice detection at this time (a layered/phantom hit
+    // shouldn't make a correctly-heard drum count as "confused"); else nearest.
+    let best = nearest(e.time, e.voice);
+    if (best >= 0) { used.add(best); per[e.voice].correct++; continue; }
+    best = nearest(e.time, null);
     if (best === -1) { per[e.voice].miss++; continue; }
     used.add(best);
-    const dv = detections[best].voice;
-    if (dv === e.voice) per[e.voice].correct++;
-    else per[e.voice].confused[dv] = (per[e.voice].confused[dv] || 0) + 1;
+    per[e.voice].confused[detections[best].voice] = (per[e.voice].confused[detections[best].voice] || 0) + 1;
   }
   const totalCorrect = TEST_VOICES.reduce((s, v) => s + per[v].correct, 0);
   const totalAll = TEST_VOICES.reduce((s, v) => s + per[v].total, 0);
