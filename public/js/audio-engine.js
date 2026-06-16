@@ -61,6 +61,7 @@ export class AudioEngine {
     this.setSensitivity(0.3);        // default: lean toward only loud, clear hits
     this._energyFloor = null;        // per-signal ambient floor, for fair gating
     this._vhFloor = null;            // high-band floor, for layered-cymbal detection
+    this._midFloor = null;           // mid-band floor, for layered-snare detection
 
     // Voice rejection: "off" | "moderate" | "aggressive". The gate sits between
     // onset detection and hit emission, so "off" leaves the pipeline untouched.
@@ -133,6 +134,7 @@ export class AudioEngine {
 
     this._energyFloor = null;
     this._vhFloor = null;
+    this._midFloor = null;
     this._fluxHistory = [];
     this._prevSpectrum = null;
     this._candidate = null;
@@ -174,11 +176,20 @@ export class AudioEngine {
     this._vhFloor = this._vhFloor == null ? vh : Math.min(vh, this._vhFloor * 1.06 + 1e-9);
     const cymbalFrame = vh > this._vhFloor * 5 && vh > 1e-7;
 
+    // Mid-band (250–2000 Hz) snare-body spike. A snare layered over a low drum
+    // fills the mid band with *noisy* energy (high spectral flatness). Kick/floor
+    // tom have a near-silent mid; a tonal tom or the kick's attack click sit at
+    // low flatness — so the flatness gate is what isolates the snare.
+    const mid = feat.midAbs;
+    this._midFloor = this._midFloor == null ? mid : Math.min(mid, this._midFloor * 1.06 + 1e-12);
+    const snareFrame = mid > this._midFloor * 8 && mid > 4e-4 && feat.flatness > 0.6;
+
     // Grow the in-flight candidate's decay-watch window.
     if (this._candidate) {
       this._candidate.frames.push(feat);
       this._candidate.peakEnergy = Math.max(this._candidate.peakEnergy, feat.energy);
       this._noteCymbal(this._candidate, feat, cymbalFrame);
+      this._noteSnare(this._candidate, feat, snareFrame);
     }
 
     if (this._isOnset(flux, feat, t)) {
@@ -247,14 +258,24 @@ export class AudioEngine {
     if (this._onFeatures) this._onFeatures(cf);
     if (this._onHit) this._onHit(voice, { time: c.time, confidence, features: cf, scores, subTail, tiebreak });
 
-    // Multi-voice: a cymbal/hat layered over a low drum. Low drums have no
-    // ≥6 kHz energy of their own, so a high-band spike means a separate cymbal —
-    // emit it as a second hit at the same time. (Snare overlaps the cymbal band,
-    // so we only do this for kick/toms, never for snare.)
-    if (c.cymbal && LOW_DRUMS.includes(voice)) {
-      const r = c.cymbalRatio ?? 0.9;
-      const cym = r > 0.9 ? "hihat" : r > 0.83 ? "ride" : "crash";
-      if (this._onHit) this._onHit(cym, { time: c.time, confidence: 0.5, features: cf, scores: {}, secondary: true, cymbalRatio: r });
+    // Multi-voice: snare and/or a cymbal layered over a low drum. Low drums have
+    // no mid (250–2000 Hz) or ≥6 kHz energy of their own, so a noisy mid spike
+    // means a snare and a high-band spike means a cymbal — each emitted as a
+    // second hit at the same time. The primary classifier only ever picks ONE
+    // low drum, so this is how kick + snare + hi-hat all reach the staff.
+    if (LOW_DRUMS.includes(voice)) {
+      if (c.snareLayer && this._onHit) {
+        this._onHit("snare", { time: c.time, confidence: 0.5, features: cf, scores: {}, secondary: true, snareLayer: true });
+      }
+      // A cymbal layered on the low drum — but ONLY when no snare is present. A
+      // snare's own broadband body spikes the ≥6 kHz band too, and when a hat is
+      // struck exactly on top of a (louder) snare the two blend inseparably, so
+      // we don't try to pull a cymbal out from under a snare (documented limit).
+      if (c.cymbal && !c.snareLayer) {
+        const r = c.cymbalRatio ?? 0.9;
+        const cym = r > 0.9 ? "hihat" : r > 0.83 ? "ride" : "crash";
+        if (this._onHit) this._onHit(cym, { time: c.time, confidence: 0.5, features: cf, scores: {}, secondary: true, cymbalRatio: r });
+      }
     }
   }
 
@@ -267,10 +288,23 @@ export class AudioEngine {
     if (!cymbalFrame) return;
     c._cymCount = (c._cymCount || 0) + 1;
     if (c._cymCount >= 2) c.cymbal = true;
+    // Type the cymbal from its loudest ≥6 kHz frame (stable; a decay tail can
+    // momentarily skew the ratio). hi-hat ≈ 0.92, ride ≈ 0.87, crash ≈ 0.79.
     if (feat.vhAbs > (c._cymPeak || 0)) {
       c._cymPeak = feat.vhAbs;
       c.cymbalRatio = feat.vhAbs / (feat.highAbs + feat.vhAbs + 1e-12);
     }
+  }
+
+  /**
+   * Track mid-band (snare-body) frames during a candidate. Like the cymbal
+   * detector we require ≥2 sustained frames (and skip the onset frame) so a low
+   * drum's broadband attack click can't masquerade as a snare.
+   */
+  _noteSnare(c, feat, snareFrame) {
+    if (!snareFrame) return;
+    c._snrCount = (c._snrCount || 0) + 1;
+    if (c._snrCount >= 2) c.snareLayer = true;
   }
 
   /**
@@ -351,6 +385,7 @@ export class AudioEngine {
     frac.energy = total;                // raw spectral energy (for fair gating)
     frac.vhAbs = bandEnergy["veryHigh"]; // absolute high-band (≥6 kHz) energy
     frac.highAbs = bandEnergy["high"];   // absolute 2–6 kHz energy
+    frac.midAbs = bandEnergy["mid"];     // absolute 250–2000 Hz energy (snare body)
     frac.level = Math.sqrt(total) / 40; // rough loudness proxy
     frac.voiceBandFrac = voiceBandE / safe; // how speech-banded the frame is
     // Spectral flatness = geometric/arithmetic mean of magnitude: ~0 tonal

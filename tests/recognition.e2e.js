@@ -110,7 +110,12 @@ test("detects two drums struck at the same time", async ({ page }) => {
   expect(kh.some((v) => CYMBALS.includes(v)), "a cymbal heard alongside the kick").toBeTruthy();
   expect(kh.length).toBe(2);
 
-  // lone hits stay single — no phantom cymbal from a low drum's attack click
+  // kick + snare at the same instant → BOTH. The snare's noisy mid-band body is
+  // detected as a layer over the kick, and its ≥6 kHz energy must NOT be mistaken
+  // for a phantom cymbal (the old behaviour was kick + crash).
+  expect(await hit("kick", "snare")).toEqual(["kick", "snare"]);
+
+  // lone hits stay single — no phantom cymbal/snare from a low drum's attack click
   expect(await hit("kick")).toEqual(["kick"]);
   expect(await hit("snare")).toEqual(["snare"]);
 });
@@ -147,10 +152,16 @@ test("records a dense groove — kick on every beat + eighth hi-hats", async ({ 
   const med = kickIntervals.sort((a, b) => a - b)[Math.floor(kickIntervals.length / 2)];
   expect(med).toBeGreaterThan(0.5);
   expect(med).toBeLessThan(0.9); // ≈ one beat at 88 bpm (0.682 s)
-  // the eighth-note hi-hats register
+  // the eighth-note hi-hats register on their solo / kick-only eighths
   expect(counts.hihat || 0).toBeGreaterThanOrEqual(2);
 
-  // KNOWN LIMIT: beats 3 & 4 are kick + snare + hi-hat at once. A single mic
-  // onset yields at most one low drum + one cymbal, so the snare is masked there
-  // and is not asserted. See README "Multiple drums at once".
+  // beats 3 & 4 are kick + snare + hi-hat at once. The mid-band snare-layer
+  // detector now recovers the snare from under the kick (it used to be dropped
+  // entirely), so the backbeat reaches the staff.
+  expect(counts.snare || 0).toBeGreaterThanOrEqual(2);
+
+  // KNOWN LIMIT: when the hi-hat lands *exactly* on top of the louder snare, its
+  // ≥6 kHz energy blends into the snare's and isn't separable, so the hat is not
+  // asserted at those two instants — it is still detected on every other eighth.
+  // See README "Multiple drums at once".
 });

@@ -212,7 +212,7 @@ Commits are made as items are ticked off.
 - [x] **T9d** — Optional **cross-device sync** (Firebase anonymous auth → Google link, merge on conflict)
 - [x] **T10** — Light, **mobile-first redesign** ([`design/REDESIGN.md`](design/REDESIGN.md)): onboarding sheet, plain-language metrics + ⓘ glosses, single shared tempo, add-drums (toms/ride/crash) to the pattern, subdivision selector, two-tap delete, drum-type icons + synth previews
 - [x] **T11** — Recognition tuning: measured default profiles, a single **sensitivity** control (only-loud → catch-quiet), and **"Calibrate to the built-in kit"** auto-calibration
-- [x] **T12** — Testable loopback audio path + **"Test recognition"** self-test, Playwright e2e suite (`./test-e2e.sh`), low-cluster fix (peak-frame + kick/tom tiebreak), and **multi-drum detection** (kick/tom + cymbal at once)
+- [x] **T12** — Testable loopback audio path + **"Test recognition"** self-test, Playwright e2e suite (`./test-e2e.sh`), low-cluster fix (peak-frame + kick/tom tiebreak), and **multi-drum detection** — a low drum plus a layered cymbal **and/or snare** at once (e.g. the full kick + snare + hi-hat backbeat)
 - [ ] **Stretch** — export MIDI, latency calibration wizard
 
 ---
@@ -250,11 +250,27 @@ into the sub band over its decay while the floor tom doesn't. With those, the
 built-in sounds recognise cleanly (~24/24 in the self-test). A real kit may
 still want calibration for its own close pairs.
 
-**Multiple drums at once:** kick and toms have no high-frequency energy of their
-own, so a *sustained* high-band spike (≥6 kHz, over several frames — not a one-
-frame attack click) on a low-drum hit means a cymbal/hat is layered on top, and
-both are emitted (e.g. kick + hi-hat, tom + crash). Snare overlaps the cymbal
-band, so snare + hi-hat reads as just the snare.
+**Multiple drums at once:** the classifier only ever picks **one** primary (low)
+drum per onset, so simultaneous hits are recovered with two independent
+layer-detectors that run over the candidate window. Both require ≥2 *sustained*
+frames (the onset frame is skipped) so a low drum's one-frame broadband attack
+click can't trigger a phantom layer:
+
+- **Cymbal layer** — a high-band spike (≥6 kHz). Kick/toms have no energy there,
+  so it means a hi-hat/ride/crash is on top; the type comes from the ≥6 kHz
+  ratio (hat ≈ 0.92, ride ≈ 0.87, crash ≈ 0.79). → e.g. kick + hi-hat, tom + crash.
+- **Snare layer** — a *noisy* mid-band spike (250–2000 Hz, high spectral
+  flatness). Kick/toms have a near-silent mid and a tonal tom/kick click sits at
+  low flatness, so this uniquely marks a snare struck over the low drum. → e.g.
+  kick + snare, and the full **kick + snare + hi-hat** backbeat.
+
+A snare's own body also spikes the ≥6 kHz band, so when a snare layer is present
+the cymbal layer is suppressed (no phantom crash on a bare kick + snare). The one
+case that stays unrecoverable is a hi-hat struck *exactly* on top of a louder
+snare: their ≥6 kHz energy blends inseparably, so only the snare is reported at
+that instant — but in a real groove the hat is on every eighth and is still
+detected on all the beats where it isn't buried under the snare. A lone snare
+(no low drum under it) is reported as just the snare.
 
 ### Kit profiles (saved calibration)
 
@@ -333,7 +349,7 @@ get a collapsible overlay that explains misclassifications:
   centroid) with the distance between them, e.g. how close kick and floor tom are.
 - **Live hit inspector** — for the last hit: its fingerprint, the distance to
   *every* profile (the classifier's scores), the chosen voice, the sub-tail value,
-  and any layered cymbal.
+  and any layered snare/cymbal.
 - **Onset log** — recent detections (time / voice / confidence), so a double-
   trigger (e.g. a snare that also fires a hi-hat) is obvious.
 
