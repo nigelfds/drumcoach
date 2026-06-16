@@ -48,6 +48,9 @@ if (DEBUG) window.__dc = {
   hits: [], reset() { this.hits = []; }, loopback: LOOPBACK,
   active: () => [...seq.active].sort(),                       // current pattern cells
   dims: () => ({ bars: seq.bars, beatsPerBar: seq.beatsPerBar, stepsPerBeat: seq.stepsPerBeat }),
+  difficulty: () => state.difficulty,
+  windows: () => ({ match: seq.scoringWindow, clean: seq.cleanWindow, perfect: seq.perfectWindow }),
+  latency: () => latency.offset,
   profiles: () => engine.exportProfiles(),
   play: (...voices) => { const t = synth.context().currentTime + 0.04; voices.forEach((v) => synth.playAt(v, t)); },
   setPattern: (cells) => {
@@ -90,7 +93,48 @@ const state = {
   shown: new Set(DEFAULT_SHOWN),
   practice: false,
   calVoice: null, calibrating: null, calSamples: [], kitDirty: false,
+  difficulty: "beginner",
 };
+
+// Difficulty presets. Timing windows (seconds) for the practice scorer, plus the
+// thresholds the live feedback panel uses to label drift / steadiness /
+// tightness. Beginners get forgiving ranges; tighter tiers reward improvement.
+//   match:   ± counted as the right note at all (else miss)
+//   clean:   ± a green "hit"
+//   perfect: ± a "perfect" (dead on)
+//   drift:   |mean error| under this ms reads "in the pocket"
+//   cv:      [locked, steady, loose] inter-onset CV cutoffs for "In time"
+//   tight:   [tight, ok] error-spread ms cutoffs for "Tightness"
+const DIFFICULTY = {
+  beginner:     { label: "Beginner",     match: 0.150, clean: 0.070, perfect: 0.035, drift: 35, cv: [0.06, 0.20, 0.32], tight: [55, 95] },
+  intermediate: { label: "Intermediate", match: 0.130, clean: 0.050, perfect: 0.025, drift: 25, cv: [0.045, 0.13, 0.22], tight: [35, 70] },
+  pro:          { label: "Pro",          match: 0.120, clean: 0.035, perfect: 0.018, drift: 18, cv: [0.0375, 0.10, 0.16], tight: [25, 50] },
+};
+const DIFFICULTY_KEY = "drumcoach.difficulty";
+function diff() { return DIFFICULTY[state.difficulty] || DIFFICULTY.beginner; }
+function applyDifficulty(key, persist = true) {
+  if (!DIFFICULTY[key]) key = "beginner";
+  state.difficulty = key;
+  const d = DIFFICULTY[key];
+  seq.setWindows({ match: d.match, clean: d.clean, perfect: d.perfect });
+  if (persist) { try { localStorage.setItem(DIFFICULTY_KEY, key); } catch {} }
+  document.querySelectorAll("#difficulty .seg").forEach((b) => b.classList.toggle("on", b.dataset.level === key));
+  updateScore();
+  updateStats();
+}
+
+// System latency: the gap between when a sound actually happens and when the
+// onset detector reports it (mic buffering + FFT window + output latency). It's
+// measured once during "Calibrate to the built-in kit" (we know exactly when
+// each test sound is triggered) and subtracted from every onset so drift /
+// tightness / scoring reflect the player, not the audio pipeline.
+const LATENCY_KEY = "drumcoach.latency.v1";
+const latency = {
+  offset: 0, // seconds
+  load() { try { const v = parseFloat(localStorage.getItem(LATENCY_KEY)); if (v >= 0 && v < 0.4) this.offset = v; } catch {} },
+  set(sec) { this.offset = Math.max(0, Math.min(0.4, sec)); try { localStorage.setItem(LATENCY_KEY, String(this.offset)); } catch {} },
+};
+latency.load();
 
 // Auto-calibration ("Calibrate to the built-in kit") plumbing.
 let autoCalCollector = null;   // (info) => void while an auto-cal voice is recording
@@ -130,10 +174,12 @@ engine.onHit((voice, info) => {
   }
   if (testCollector) testCollector(voice, info); // additive: still notate below
   const grid = metro.getGrid();
-  timing.addOnset(info.time, grid);
+  // Subtract measured pipeline latency so timing/scoring reflect the player.
+  const tAdj = info.time - latency.offset;
+  timing.addOnset(tAdj, grid);
   let judgement = "plain";
-  if (state.practice && grid) judgement = seq.judgeHit(voice, info.time);
-  notation.addHit(info.time, voice, judgement);
+  if (state.practice && grid) judgement = seq.judgeHit(voice, tAdj);
+  notation.addHit(tAdj, voice, judgement);
 });
 
 async function startMic() {
@@ -236,20 +282,29 @@ function updateStats() {
   const b = timing.estimateBPM();
   setMetric("m-tempo", b ? `${b} <small>BPM</small>` : "—", b ? "" : "dim");
 
-  const st = timing.steadiness();
-  if (st == null) setMetric("m-intime", "—", "dim");
-  else if (st >= 0.85) setMetric("m-intime", "Locked", "good");
-  else if (st >= 0.6) setMetric("m-intime", "Steady", "good");
-  else if (st >= 0.35) setMetric("m-intime", "Loose", "");
+  const d = diff();
+  const cv = timing.steadinessCV();
+  if (cv == null) setMetric("m-intime", "—", "dim");
+  else if (cv <= d.cv[0]) setMetric("m-intime", "Locked", "good");
+  else if (cv <= d.cv[1]) setMetric("m-intime", "Steady", "good");
+  else if (cv <= d.cv[2]) setMetric("m-intime", "Loose", "");
   else setMetric("m-intime", "Wobbly", "warn");
 
   const dr = timing.drift();
   if (!dr) setMetric("m-drift", "—", "dim");
-  else setMetric("m-drift", `${dr.ms > 0 ? "+" : ""}${dr.ms} <small>ms</small>`,
-    Math.abs(dr.ms) <= 18 ? "good" : "warn");
+  else {
+    const tag = Math.abs(dr.ms) <= d.drift ? "in the pocket" : dr.ms > 0 ? "dragging" : "rushing";
+    setMetric("m-drift", `${dr.ms > 0 ? "+" : ""}${dr.ms} <small>ms · ${tag}</small>`,
+      Math.abs(dr.ms) <= d.drift ? "good" : "warn");
+  }
 
   const tt = timing.tightnessMs();
-  setMetric("m-tight", tt == null ? "—" : `${tt} <small>ms</small>`, tt == null ? "dim" : "");
+  if (tt == null) setMetric("m-tight", "—", "dim");
+  else {
+    const cls = tt <= d.tight[0] ? "good" : tt <= d.tight[1] ? "" : "warn";
+    const word = tt <= d.tight[0] ? "tight" : tt <= d.tight[1] ? "ok" : "loose";
+    setMetric("m-tight", `${tt} <small>ms · ${word}</small>`, cls);
+  }
 }
 
 // tooltips
@@ -262,6 +317,23 @@ document.querySelectorAll(".info").forEach((btn) => {
   });
 });
 document.addEventListener("click", () => document.querySelectorAll(".tip").forEach((t) => t.classList.remove("show")));
+
+// Difficulty selector
+document.querySelectorAll("#difficulty .seg").forEach((b) => {
+  b.addEventListener("click", () => applyDifficulty(b.dataset.level));
+});
+function updateLatencyReadout() {
+  const el = $("latency-readout");
+  if (!el) return;
+  if (latency.offset > 0) {
+    el.innerHTML = `Timing latency: <b>${Math.round(latency.offset * 1000)} ms</b> <button id="latency-reset" class="linklike">reset</button>`;
+    $("latency-reset").addEventListener("click", () => { latency.set(0); updateLatencyReadout(); });
+  } else {
+    el.innerHTML = `Timing latency: <b>not measured</b> — run “Calibrate to the built-in kit” so drift is accurate.`;
+  }
+}
+applyDifficulty(localStorage.getItem(DIFFICULTY_KEY) || "beginner", false);
+updateLatencyReadout();
 
 // ===========================================================================
 // PATTERNS
@@ -396,8 +468,9 @@ function updateScore() {
   if (!acc) { el.innerHTML = `<span class="pill">Play the pattern with the beat on…</span>`; return; }
   el.innerHTML =
     `<span class="pill big ${acc.percent >= 80 ? "good" : acc.percent >= 50 ? "" : "bad"}">${acc.percent}% accurate</span>` +
-    `<span class="pill">✓ ${acc.hit}</span><span class="pill">⟨ ${acc.early}</span>` +
-    `<span class="pill">⟩ ${acc.late}</span><span class="pill">✗ ${acc.miss}</span>`;
+    `<span class="pill">★ ${acc.perfect}</span><span class="pill">✓ ${acc.hit}</span>` +
+    `<span class="pill">⟨ ${acc.early}</span><span class="pill">⟩ ${acc.late}</span>` +
+    `<span class="pill">✗ ${acc.miss}</span>`;
 }
 
 // ===========================================================================
@@ -531,12 +604,23 @@ async function autoCalibrate() {
   engine.suspendVoiceFilter = true; // don't let voice rejection drop the sounds
 
   let got = 0;
+  const latSamples = []; // trigger→detect deltas, for the latency offset
   try {
     for (const v of AUTOCAL_ORDER) {
       const samples = [];
-      autoCalCollector = (info) => samples.push(info.features);
+      let pendingPlayT = null; // ctx time of the most recent un-matched trigger
+      autoCalCollector = (info) => {
+        samples.push(info.features);
+        // Pair the first onset after each trigger. Skip the kick — its slow
+        // downsweep attack detects later and would inflate the estimate.
+        if (pendingPlayT != null && v !== "kick") {
+          const dt = info.time - pendingPlayT;
+          if (dt > 0 && dt < 0.4) latSamples.push(dt);
+          pendingPlayT = null;
+        }
+      };
       $("cal-status").textContent = `▶ Listening for ${VOICE_META[v].label}…`;
-      for (let i = 0; i < 4; i++) { synth.play(v); await sleep(380); }
+      for (let i = 0; i < 4; i++) { pendingPlayT = audioCtx.currentTime; synth.play(v); await sleep(380); }
       await sleep(260);
       autoCalCollector = null;
       if (samples.length >= 2) {
@@ -558,7 +642,17 @@ async function autoCalibrate() {
   }
 
   if (got === 0) { $("cal-status").textContent = "Couldn’t hear the sounds — turn your volume up and check the mic isn’t muted, then try again."; return; }
-  $("cal-status").textContent = `Done — calibrated ${got}/${AUTOCAL_ORDER.length} drums from the built-in kit.`;
+
+  // Latency: median trigger→detect delay (robust to the odd stray onset).
+  let latMsg = "";
+  if (latSamples.length >= 4) {
+    latSamples.sort((a, b) => a - b);
+    const med = latSamples[Math.floor(latSamples.length / 2)];
+    latency.set(med);
+    latMsg = ` · timing latency ${Math.round(med * 1000)} ms`;
+  }
+  updateLatencyReadout();
+  $("cal-status").textContent = `Done — calibrated ${got}/${AUTOCAL_ORDER.length} drums from the built-in kit.${latMsg}`;
   const activeId = kits.activeId();
   if (activeId && kits.get(activeId)) { kits.updateProfiles(activeId, engine.exportProfiles()); setKitStatus("Built-in calibration saved into the active kit."); }
   else { state.kitDirty = true; setKitStatus("Calibrated to the built-in kit — name a kit and Save to keep it."); }

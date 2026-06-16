@@ -24,6 +24,7 @@ const COLORS = {
   grid: "rgba(150,180,170,0.16)",
   gridStrong: "rgba(150,180,170,0.36)",
   note: "#EAF1EE",
+  perfect: "#9CFFE3",
   hit: "#56E0A6",
   early: "#EFC15A",
   late: "#6FB7E0",
@@ -163,6 +164,7 @@ export class Notation {
 
   _judgementColor(j) {
     switch (j) {
+      case "perfect": return COLORS.perfect;
       case "hit": return COLORS.hit;
       case "early": return COLORS.early;
       case "late": return COLORS.late;

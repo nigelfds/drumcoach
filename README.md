@@ -7,7 +7,7 @@ microphone and DrumCoach will:
 - **Listen** to your microphone and detect drum onsets in real time
 - **Classify** each hit as **kick, snare, tom 1/2/3, hi-hat, ride, or crash**
 - **Notate** what you played on a live, scrolling standard drum staff
-- **Measure your timing** — live BPM, steadiness, and how far you are drifting
+- **Measure your timing** — live BPM, steadiness, and how far you are drifting, with **Beginner / Intermediate / Pro** ranges so feedback fits your level (not just pro tightness)
 - **Metronome** with visual + audible click so you can lock to a tempo
 - **Build & score patterns** — opens with a 1-bar eighth-note rock beat (hi-hats throughout, snare on 2 & 4, kick on 1 & 3); add toms/ride/crash, change resolution, and score how cleanly you play it
 - **Play your pattern back** through a built-in drum synth (the tempo follows the metronome), with an optional loop
@@ -213,7 +213,8 @@ Commits are made as items are ticked off.
 - [x] **T10** — Light, **mobile-first redesign** ([`design/REDESIGN.md`](design/REDESIGN.md)): onboarding sheet, plain-language metrics + ⓘ glosses, single shared tempo, add-drums (toms/ride/crash) to the pattern, subdivision selector, two-tap delete, drum-type icons + synth previews
 - [x] **T11** — Recognition tuning: measured default profiles, a single **sensitivity** control (only-loud → catch-quiet), and **"Calibrate to the built-in kit"** auto-calibration
 - [x] **T12** — Testable loopback audio path + **"Test recognition"** self-test, Playwright e2e suite (`./test-e2e.sh`), low-cluster fix (peak-frame + kick/tom tiebreak), and **multi-drum detection** — a low drum plus a layered cymbal **and/or snare** at once (e.g. the full kick + snare + hi-hat backbeat)
-- [ ] **Stretch** — export MIDI, latency calibration wizard
+- [x] **T13** — Beginner-friendly timing feedback: **Beginner / Intermediate / Pro** skill levels that scale the scoring windows + feedback ranges, a **Perfect** scoring tier, and **latency calibration** measured during "Calibrate to the built-in kit" (subtracted from drift / tightness / scoring)
+- [ ] **Stretch** — export MIDI
 
 ---
 
@@ -313,10 +314,42 @@ and scoring stay exact. Calibration bypasses the voice gate entirely.
 
 - **Live BPM** is derived from inter-onset intervals (median of recent hits,
   folded to a sensible 40–240 BPM range).
+- **In time** is the coefficient of variation of your inter-onset intervals — how
+  *even* your spacing is (Locked / Steady / Loose / Wobbly).
 - **Drift** compares your hit times to the nearest metronome grid line; a running
   signed average tells you if you are rushing (ahead) or dragging (behind).
-- **Pattern score** lines up detected hits against the annotated grid within a
-  timing window and reports hits / misses / extra notes and an accuracy %.
+- **Tightness** is the spread (std-dev) of those grid errors, in ms — lower is
+  tighter.
+- **Pattern score** lines up detected hits against the annotated grid and reports
+  perfect / hit / early / late / miss / extra and an accuracy % (perfect + clean
+  hits = full credit, early/late = half).
+
+### Skill levels (don't expect pro accuracy from a beginner)
+
+The feedback ranges and scoring windows are **not** fixed at pro tightness — they
+scale with a **Beginner / Intermediate / Pro** selector (Beginner is the default,
+and the choice is saved). The windows widen for beginners so steady, musical
+playing reads as "Steady / in the pocket" rather than always "Wobbly":
+
+| Level | Clean hit | Perfect | "In the pocket" drift | Match window |
+|---|---|---|---|---|
+| **Beginner** | ±70 ms | ±35 ms | ±35 ms | ±150 ms |
+| **Intermediate** | ±50 ms | ±25 ms | ±25 ms | ±130 ms |
+| **Pro** | ±35 ms | ±18 ms | ±18 ms | ±120 ms |
+
+These are grounded in rhythm perception (~20 ms = "just noticeable", ~50 ms starts
+sounding off, >100 ms clearly off) and typical skill bands (pros sit ~10–20 ms SD;
+beginners ~50–80 ms). Presets live in `DIFFICULTY` in `public/js/app.js`.
+
+### Latency calibration
+
+The onset detector reports a hit tens of ms *after* it actually happens (mic
+buffering + FFT window + output latency), which would otherwise show up as a fake
+"dragging" drift. **Calibrate to the built-in kit** (in Settings) now also
+measures this: it knows exactly when it triggers each test sound, so the median
+trigger→detect delay is stored and subtracted from every onset before drift,
+tightness and scoring. The measured value is shown under the timing panel and can
+be reset.
 
 ---
 
