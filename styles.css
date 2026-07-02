@@ -240,6 +240,57 @@ footer .heart{color:var(--beat)}
 .ghost{background:transparent;color:var(--muted);border:1px solid var(--line)!important}
 .ob-foot{text-align:center;font-size:11px;color:var(--muted);margin-top:14px}
 
+/* ============================================================
+   RESPONSIVE — phones keep the single-column layout above.
+   Tablets (iPad) and laptops get a wider, multi-column board.
+   ============================================================ */
+
+/* iPad portrait and up: two-column card grid. */
+@media (min-width:760px){
+  .app{
+    max-width:920px;
+    padding:28px 24px calc(40px + env(safe-area-inset-bottom));
+    display:grid;
+    grid-template-columns:repeat(12,1fr);
+    column-gap:16px;
+    row-gap:16px;
+    align-items:start;
+  }
+  /* the grid supplies spacing, so drop the stacked-flow margins */
+  .app > header.top,.app > .mic,.app > .card,.app > details.disc,.app > footer{margin-top:0}
+
+  /* full-width bands: staff, pattern editor and settings each get a full row */
+  header.top,.mic,.card--staff,.card--patterns,#settings,footer{grid-column:1 / -1}
+
+  /* paired row: controls beside live feedback */
+  .card--tempo{grid-column:span 5}
+  .card--feedback{grid-column:span 7}
+
+  .disc-body{padding-bottom:20px}
+
+  /* more room for the notation on a bigger canvas */
+  .staff-canvas{height:300px}
+
+  /* onboarding becomes a centered modal instead of a bottom sheet */
+  .overlay{align-items:center;padding:24px}
+  .sheet{max-width:460px;border-radius:26px;animation:rise-modal .28s cubic-bezier(.2,.8,.2,1)}
+  .sheet .grip{display:none}
+}
+
+/* Laptop / desktop: wider board, roomier notation, bigger tempo readout. */
+@media (min-width:1200px){
+  .app{
+    max-width:1180px;
+    padding:36px 32px calc(48px + env(safe-area-inset-bottom));
+    column-gap:20px;
+    row-gap:20px;
+  }
+  .staff-canvas{height:340px}
+  .tempo .num{font-size:60px}
+  .card{padding:20px 20px}
+}
+
+@keyframes rise-modal{from{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 @keyframes fade{from{opacity:0;transform:translateY(-3px)}to{opacity:1}}
 @keyframes rise{from{transform:translateY(40px);opacity:.4}to{transform:translateY(0);opacity:1}}
