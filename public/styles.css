@@ -262,11 +262,15 @@ footer .heart{color:var(--beat)}
   /* full-width bands: staff, pattern editor and settings each get a full row */
   header.top,.mic,.card--staff,.card--patterns,#settings,footer{grid-column:1 / -1}
 
-  /* paired row: controls beside live feedback */
+  /* paired row: controls beside live feedback, matched to equal height */
   .card--tempo{grid-column:span 5}
   .card--feedback{grid-column:span 7}
+  .card--tempo,.card--feedback{align-self:stretch}
 
+  /* settings open into two columns: calibration | profiles + hit detection */
   .disc-body{padding-bottom:20px}
+  .settings-cols{display:grid;grid-template-columns:1fr 1fr;column-gap:26px;align-items:start}
+  .settings-col > :first-child{margin-top:0 !important}
 
   /* more room for the notation on a bigger canvas */
   .staff-canvas{height:300px}
